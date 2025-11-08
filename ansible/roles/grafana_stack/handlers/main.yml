@@ -1,0 +1,15 @@
+---
+# Grafana Stack Handlers
+
+- name: Reload Prometheus
+  uri:
+    url: "http://localhost:9090/-/reload"
+    method: POST
+    status_code: 200
+  ignore_errors: yes
+  when: prometheus_auto_reload | default(true)
+
+- name: Restart Grafana Stack
+  command: docker-compose restart
+  args:
+    chdir: "{{ grafana_stack_deploy_dir }}"

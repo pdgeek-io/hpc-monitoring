@@ -349,3 +349,126 @@ This provides:
 - Consistent deployment across infrastructure
 - Full observability: metrics, logs, traces
 - Centralized alerting and visualization
+
+## Automated Endpoint Configuration
+
+### Meticulous Ansible Setup
+
+The monitoring system uses a **fully automated, inventory-driven approach** where Prometheus is configured directly from the Ansible inventory. No manual endpoint configuration is required.
+
+### How It Works
+
+1. **Define infrastructure in inventory** - Add hosts with roles (login, head, compute, GPU, storage)
+2. **Run Ansible playbook** - Deploys exporters and generates Prometheus config
+3. **Automatic discovery** - Prometheus automatically scrapes all endpoints
+4. **Validation** - System verifies all endpoints are reachable
+
+### Cluster-Aware Inventory Structure
+
+```ini
+[hpc1_login_nodes]
+login01.example.com
+
+[hpc1_head_nodes]
+head01.example.com
+
+[hpc1_compute_nodes]
+compute[01:20].example.com
+
+[hpc1_gpu_nodes]
+gpu[01:05].example.com
+```
+
+Inventory supports:
+- **Login nodes**: SSH entry points
+- **Head nodes**: Management/scheduler
+- **Compute nodes**: Job execution
+- **GPU nodes**: Accelerated compute
+- **Storage nodes**: WEKA, MooseFS, NFS
+- **Network devices**: Switches, routers, IB fabric
+
+### Single-Command Full Setup
+
+Deploy entire monitoring infrastructure:
+
+```bash
+ansible-playbook -i ansible/inventory ansible/playbooks/setup_monitoring.yml
+```
+
+This automatically:
+1. Deploys exporters to all nodes
+2. Deploys Grafana CE stack
+3. Generates Prometheus config from inventory
+4. Validates all endpoints
+5. Creates validation report
+
+### Prometheus Auto-Configuration
+
+Prometheus `prometheus.yml` is generated from template using inventory data. When you add nodes to inventory, they're automatically added to Prometheus scrape targets with appropriate labels:
+
+```yaml
+- job_name: 'node-exporter-hpc1'
+  static_configs:
+    - targets:
+        - 'compute01.example.com:9100'
+        - 'compute02.example.com:9100'
+        # ... automatically populated from inventory
+      labels:
+        cluster: 'hpc1'
+        role: 'compute'
+        tier: 'compute'
+```
+
+### Endpoint Validation
+
+Validate all endpoints after deployment:
+
+```bash
+ansible-playbook -i ansible/inventory ansible/playbooks/validate_endpoints.yml
+```
+
+Generates report showing:
+- ✅ Online/offline status for each exporter
+- ✅ Connectivity to Prometheus
+- ✅ Recommendations for fixing issues
+
+Report location: `/tmp/hpc_endpoint_validation_report.txt`
+
+### Adding New Nodes
+
+1. Add to inventory:
+   ```ini
+   [hpc1_compute_nodes]
+   compute21.example.com  # NEW
+   ```
+
+2. Deploy exporter:
+   ```bash
+   ansible-playbook -i ansible/inventory ansible/playbooks/hpc_fullstack_monitoring.yml \
+     --limit compute21.example.com
+   ```
+
+3. Update Prometheus:
+   ```bash
+   ansible-playbook -i ansible/inventory ansible/playbooks/grafana_stack.yml
+   ```
+
+4. Verify in Prometheus targets: `http://monitoring-server:9090/targets`
+
+### Inventory Example
+
+See `ansible/inventory.example` for comprehensive cluster setup example showing:
+- Multiple cluster configuration
+- Node type definitions
+- Logical groupings
+- Metadata labels
+- Network architecture
+
+### Key Files
+
+- `ansible/inventory` - Your infrastructure definition
+- `ansible/inventory.example` - Comprehensive example
+- `ansible/roles/grafana_stack/templates/prometheus.yml.j2` - Config generator
+- `ansible/playbooks/setup_monitoring.yml` - Full automation
+- `ansible/playbooks/validate_endpoints.yml` - Endpoint validation
+- `docs/AUTOMATED_ENDPOINT_SETUP.md` - Detailed documentation

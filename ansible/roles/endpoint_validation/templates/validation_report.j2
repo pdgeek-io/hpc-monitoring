@@ -1,0 +1,108 @@
+================================================================================
+HPC Monitoring - Endpoint Validation Report
+Generated: {{ ansible_date_time.iso8601 }}
+================================================================================
+
+SUMMARY
+-------
+Total Hosts: {{ groups['all'] | length }}
+Login Nodes: {{ groups['login_nodes'] | default([]) | length }}
+Head Nodes: {{ groups['head_nodes'] | default([]) | length }}
+Compute Nodes: {{ groups['compute_nodes'] | default([]) | length }}
+GPU Nodes: {{ groups['gpu_nodes'] | default([]) | length }}
+Storage Nodes: {{ groups['storage_nodes'] | default([]) | length }}
+
+DETAILED RESULTS
+----------------
+
+{% for result in all_validation_results %}
+{% if result is defined %}
+Host: {{ result.hostname }}
+  Role: {{ result.node_role }}
+  IP: {{ result.ip_address }}
+  Node Exporter: {{ result.node_exporter }}
+  DCGM Exporter: {{ result.dcgm_exporter }}
+  SLURM Exporter: {{ result.slurm_exporter }}
+  WEKA Exporter: {{ result.weka_exporter }}
+  MooseFS Exporter: {{ result.moosefs_exporter }}
+  iDRAC Exporter: {{ result.idrac_exporter }}
+  Prometheus Reachable: {{ result.prometheus_reachable }}
+
+{% endif %}
+{% endfor %}
+
+PROMETHEUS SCRAPE TARGETS
+--------------------------
+
+This inventory will generate the following Prometheus scrape configurations:
+
+{% if groups['hpc1'] is defined and groups['hpc1'] | length > 0 %}
+HPC1 Cluster:
+  - Compute nodes: {{ groups['hpc1_compute_nodes'] | default([]) | length }}
+  - GPU nodes: {{ groups['hpc1_gpu_nodes'] | default([]) | length }}
+  - Login nodes: {{ groups['hpc1_login_nodes'] | default([]) | length }}
+  - Head nodes: {{ groups['hpc1_head_nodes'] | default([]) | length }}
+{% endif %}
+
+{% if groups['hpc2'] is defined and groups['hpc2'] | length > 0 %}
+HPC2 Cluster:
+  - Compute nodes: {{ groups['hpc2_compute_nodes'] | default([]) | length }}
+  - GPU nodes: {{ groups['hpc2_gpu_nodes'] | default([]) | length }}
+  - Login nodes: {{ groups['hpc2_login_nodes'] | default([]) | length }}
+  - Head nodes: {{ groups['hpc2_head_nodes'] | default([]) | length }}
+{% endif %}
+
+Storage:
+  - WEKA nodes: {{ groups['storage_weka'] | default([]) | length }}
+  - MooseFS nodes: {{ groups['storage_moosefs'] | default([]) | length }}
+  - NFS servers: {{ groups['storage_nfs'] | default([]) | length }}
+
+Job Scheduler:
+  - SLURM controllers: {{ groups['job_scheduler'] | default([]) | length }}
+
+Hardware Monitoring:
+  - PowerEdge servers: {{ groups['poweredge_servers'] | default([]) | length }}
+
+Network:
+  - Switches: {{ groups['network_switches'] | default([]) | length }}
+  - InfiniBand: {{ groups['network_ib_switches'] | default([]) | length }}
+  - Routers: {{ groups['network_routers'] | default([]) | length }}
+
+RECOMMENDATIONS
+---------------
+
+{% set offline_count = all_validation_results | selectattr('node_exporter', 'equalto', 'offline') | list | length %}
+{% if offline_count > 0 %}
+⚠️  {{ offline_count }} hosts have offline Node Exporter
+   Action: Check systemd status and firewall rules
+{% else %}
+✓ All Node Exporters are online
+{% endif %}
+
+{% if groups['gpu_nodes'] is defined %}
+{% set gpu_offline = all_validation_results | selectattr('dcgm_exporter', 'equalto', 'offline') | list | length %}
+{% if gpu_offline > 0 %}
+⚠️  {{ gpu_offline }} GPU nodes have offline DCGM Exporter
+   Action: Verify NVIDIA drivers and DCGM installation
+{% else %}
+✓ All DCGM Exporters are online
+{% endif %}
+{% endif %}
+
+NEXT STEPS
+----------
+
+1. Review offline endpoints above
+2. Fix any connectivity or service issues
+3. Regenerate Prometheus configuration:
+   ansible-playbook -i inventory playbooks/grafana_stack.yml
+
+4. Reload Prometheus configuration:
+   curl -X POST http://monitoring-server:9090/-/reload
+
+5. Verify targets in Prometheus:
+   Open http://monitoring-server:9090/targets
+
+================================================================================
+End of Report
+================================================================================

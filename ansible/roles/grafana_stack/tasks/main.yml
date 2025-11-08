@@ -30,7 +30,17 @@
     dest: "{{ grafana_stack_deploy_dir }}/"
     delete: yes
     recursive: yes
+    rsync_opts:
+      - "--exclude=prometheus/prometheus.yml"
   delegate_to: "{{ inventory_hostname }}"
+
+- name: Generate Prometheus configuration from inventory
+  template:
+    src: "prometheus.yml.j2"
+    dest: "{{ grafana_stack_deploy_dir }}/prometheus/prometheus.yml"
+    mode: '0644'
+    backup: yes
+  notify: Reload Prometheus
 
 - name: Ensure all configuration directories exist
   file:

@@ -1,0 +1,345 @@
+# Prometheus Configuration - Auto-generated from Ansible Inventory
+# DO NOT EDIT MANUALLY - This file is managed by Ansible
+# Last generated: {{ ansible_date_time.iso8601 }}
+
+global:
+  scrape_interval: {{ prometheus_scrape_interval | default('15s') }}
+  scrape_timeout: {{ prometheus_scrape_timeout | default('10s') }}
+  evaluation_interval: {{ prometheus_evaluation_interval | default('15s') }}
+  external_labels:
+    cluster: '{{ prometheus_cluster_name | default("hpc-production") }}'
+    environment: '{{ prometheus_environment | default("production") }}'
+    datacenter: '{{ prometheus_datacenter | default("default") }}'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - '{{ alertmanager_host | default("alertmanager") }}:{{ alertmanager_port | default("9093") }}'
+
+# Load alert rules
+rule_files:
+  - 'alerts.yml'
+
+# Scrape configurations - Auto-discovered from inventory
+scrape_configs:
+  # ==========================================
+  # Monitoring Stack Self-Monitoring
+  # ==========================================
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          component: 'prometheus'
+          tier: 'monitoring'
+
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+        labels:
+          component: 'grafana'
+          tier: 'monitoring'
+
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+        labels:
+          component: 'loki'
+          tier: 'monitoring'
+
+  - job_name: 'tempo'
+    static_configs:
+      - targets: ['tempo:3200']
+        labels:
+          component: 'tempo'
+          tier: 'monitoring'
+
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+        labels:
+          component: 'alertmanager'
+          tier: 'monitoring'
+
+  - job_name: 'node-exporter-local'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          component: 'node-exporter'
+          instance: 'monitoring-server'
+          tier: 'monitoring'
+
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          component: 'cadvisor'
+          tier: 'monitoring'
+
+  - job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['pushgateway:9091']
+        labels:
+          component: 'pushgateway'
+          tier: 'monitoring'
+
+  - job_name: 'blackbox-exporter'
+    static_configs:
+      - targets: ['blackbox-exporter:9115']
+        labels:
+          component: 'blackbox-exporter'
+          tier: 'monitoring'
+
+  - job_name: 'snmp-exporter'
+    static_configs:
+      - targets: ['snmp-exporter:9116']
+        labels:
+          component: 'snmp-exporter'
+          tier: 'monitoring'
+
+  - job_name: 'process-exporter'
+    static_configs:
+      - targets: ['process-exporter:9256']
+        labels:
+          component: 'process-exporter'
+          tier: 'monitoring'
+
+  - job_name: 'statsd-exporter'
+    static_configs:
+      - targets: ['statsd-exporter:9102']
+        labels:
+          component: 'statsd-exporter'
+          tier: 'monitoring'
+
+  - job_name: 'grafana-renderer'
+    static_configs:
+      - targets: ['grafana-image-renderer:8081']
+        labels:
+          component: 'grafana-renderer'
+          tier: 'monitoring'
+
+  # ==========================================
+  # HPC Infrastructure - Rocky Linux Nodes
+  # ==========================================
+
+{% if groups['hpc1'] is defined and groups['hpc1'] | length > 0 %}
+  - job_name: 'node-exporter-hpc1'
+    scrape_interval: {{ node_exporter_scrape_interval | default('15s') }}
+    static_configs:
+      - targets:
+{% for host in groups['hpc1'] %}
+          - '{{ hostvars[host].ansible_host | default(host) }}:{{ node_exporter_port | default("9100") }}'
+{% endfor %}
+        labels:
+          cluster: 'hpc1'
+          role: 'compute'
+          os: 'rocky-linux'
+          tier: 'compute'
+{% endif %}
+
+{% if groups['hpc2'] is defined and groups['hpc2'] | length > 0 %}
+  - job_name: 'node-exporter-hpc2'
+    scrape_interval: {{ node_exporter_scrape_interval | default('15s') }}
+    static_configs:
+      - targets:
+{% for host in groups['hpc2'] %}
+          - '{{ hostvars[host].ansible_host | default(host) }}:{{ node_exporter_port | default("9100") }}'
+{% endfor %}
+        labels:
+          cluster: 'hpc2'
+          role: 'compute'
+          os: 'rocky-linux'
+          tier: 'compute'
+{% endif %}
+
+  # ==========================================
+  # GPU Nodes - NVIDIA DCGM
+  # ==========================================
+
+{% if groups['gpu_nodes'] is defined and groups['gpu_nodes'] | length > 0 %}
+  - job_name: 'nvidia-dcgm'
+    scrape_interval: {{ gpu_scrape_interval | default('30s') }}
+    static_configs:
+      - targets:
+{% for host in groups['gpu_nodes'] %}
+          - '{{ hostvars[host].ansible_host | default(host) }}:{{ nvidia_dcgm_port | default("9400") }}'
+{% endfor %}
+        labels:
+          role: 'gpu'
+          hardware: 'nvidia'
+          tier: 'compute'
+{% endif %}
+
+  # ==========================================
+  # SLURM Job Scheduler
+  # ==========================================
+
+{% if groups['job_scheduler'] is defined and groups['job_scheduler'] | length > 0 %}
+  - job_name: 'slurm-exporter'
+    scrape_interval: {{ slurm_scrape_interval | default('30s') }}
+    static_configs:
+      - targets:
+{% for host in groups['job_scheduler'] %}
+          - '{{ hostvars[host].ansible_host | default(host) }}:{{ slurm_exporter_port | default("9091") }}'
+{% endfor %}
+        labels:
+          role: 'scheduler'
+          component: 'slurm'
+          tier: 'orchestration'
+{% endif %}
+
+  # ==========================================
+  # Storage - WEKA Distributed Filesystem
+  # ==========================================
+
+{% if groups['storage_weka'] is defined and groups['storage_weka'] | length > 0 %}
+  - job_name: 'weka-exporter'
+    scrape_interval: {{ weka_scrape_interval | default('30s') }}
+    scrape_timeout: {{ weka_scrape_timeout | default('20s') }}
+    static_configs:
+      - targets:
+{% for host in groups['storage_weka'] %}
+          - '{{ hostvars[host].ansible_host | default(host) }}:{{ weka_exporter_port | default("9101") }}'
+{% endfor %}
+        labels:
+          role: 'storage'
+          filesystem: 'weka'
+          tier: 'storage'
+{% endif %}
+
+  # ==========================================
+  # Storage - MooseFS Distributed Filesystem
+  # ==========================================
+
+{% if groups['storage_moosefs'] is defined and groups['storage_moosefs'] | length > 0 %}
+  - job_name: 'moosefs-exporter'
+    scrape_interval: {{ moosefs_scrape_interval | default('30s') }}
+    static_configs:
+{% for host in groups['storage_moosefs'] %}
+      - targets: ['{{ hostvars[host].ansible_host | default(host) }}:{{ moosefs_exporter_port | default("9105") }}']
+        labels:
+          role: 'storage'
+          filesystem: 'moosefs'
+{% if 'master' in host %}
+          component: 'master'
+{% elif 'chunk' in host %}
+          component: 'chunkserver'
+{% else %}
+          component: 'node'
+{% endif %}
+          tier: 'storage'
+{% endfor %}
+{% endif %}
+
+  # ==========================================
+  # Dell PowerEdge - iDRAC Hardware Monitoring
+  # ==========================================
+
+{% if groups['poweredge_servers'] is defined and groups['poweredge_servers'] | length > 0 %}
+  - job_name: 'idrac-exporter'
+    scrape_interval: {{ idrac_scrape_interval | default('60s') }}
+    scrape_timeout: {{ idrac_scrape_timeout | default('30s') }}
+    static_configs:
+{% for host in groups['poweredge_servers'] %}
+      - targets: ['{{ hostvars[host].ansible_host | default(host) }}:{{ idrac_exporter_port | default("9610") }}']
+        labels:
+          role: 'hardware'
+          vendor: 'dell'
+          model: 'poweredge'
+{% if hostvars[host].server_generation is defined %}
+          generation: '{{ hostvars[host].server_generation }}'
+{% elif 'gen=' in host %}
+          generation: '{{ host.split("gen=")[1].split()[0] }}'
+{% else %}
+          generation: 'unknown'
+{% endif %}
+          hostname: '{{ host }}'
+          tier: 'hardware'
+{% endfor %}
+{% endif %}
+
+  # ==========================================
+  # Blackbox Probing - HTTP/HTTPS Endpoints
+  # ==========================================
+
+{% if prometheus_blackbox_targets is defined and prometheus_blackbox_targets | length > 0 %}
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+{% for target in prometheus_blackbox_targets %}
+          - {{ target }}
+{% endfor %}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+{% endif %}
+
+  # ==========================================
+  # SNMP Monitoring - Network Devices
+  # ==========================================
+
+{% if groups['network_devices'] is defined and groups['network_devices'] | length > 0 %}
+  - job_name: 'snmp'
+    scrape_interval: {{ snmp_scrape_interval | default('60s') }}
+    scrape_timeout: {{ snmp_scrape_timeout | default('30s') }}
+    static_configs:
+      - targets:
+{% for host in groups['network_devices'] %}
+          - {{ hostvars[host].ansible_host | default(host) }}
+{% endfor %}
+        labels:
+          role: 'network'
+{% if network_device_type is defined %}
+          device_type: '{{ network_device_type }}'
+{% else %}
+          device_type: 'switch'
+{% endif %}
+          tier: 'network'
+    metrics_path: /snmp
+    params:
+      module: [{{ snmp_module | default('default') }}]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: snmp-exporter:9116
+{% endif %}
+
+  # ==========================================
+  # Custom Exporters
+  # ==========================================
+
+{% if prometheus_custom_jobs is defined %}
+{% for job in prometheus_custom_jobs %}
+  - job_name: '{{ job.name }}'
+{% if job.scrape_interval is defined %}
+    scrape_interval: {{ job.scrape_interval }}
+{% endif %}
+{% if job.scrape_timeout is defined %}
+    scrape_timeout: {{ job.scrape_timeout }}
+{% endif %}
+    static_configs:
+      - targets:
+{% for target in job.targets %}
+          - {{ target }}
+{% endfor %}
+{% if job.labels is defined %}
+        labels:
+{% for key, value in job.labels.items() %}
+          {{ key }}: '{{ value }}'
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}

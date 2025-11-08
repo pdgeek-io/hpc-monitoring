@@ -1,0 +1,48 @@
+---
+# Validate All Monitoring Endpoints
+# This playbook validates that all exporters are running and accessible
+
+- name: Validate Monitoring Endpoints Across HPC Infrastructure
+  hosts: all
+  gather_facts: yes
+  become: no
+  tasks:
+    - name: Include endpoint validation role
+      include_role:
+        name: endpoint_validation
+
+- name: Generate Endpoint Validation Report
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Collect all validation results
+      set_fact:
+        all_validation_results: "{{ groups['all'] | map('extract', hostvars, 'endpoint_validation_results') | list }}"
+
+    - name: Generate validation report
+      template:
+        src: ../roles/endpoint_validation/templates/validation_report.j2
+        dest: "/tmp/hpc_endpoint_validation_report.txt"
+      when: all_validation_results is defined
+
+    - name: Display validation summary
+      debug:
+        msg: |
+          ==========================================
+          Endpoint Validation Complete
+          ==========================================
+
+          Report saved to: /tmp/hpc_endpoint_validation_report.txt
+
+          Summary:
+          - Total hosts validated: {{ groups['all'] | length }}
+          - Node Exporter endpoints: {{ groups['node_exporter'] | default([]) | length }}
+          - GPU nodes: {{ groups['gpu_nodes'] | default([]) | length }}
+          - Storage nodes: {{ groups['storage_nodes'] | default([]) | length }}
+          - Network devices: {{ groups['network_devices'] | default([]) | length }}
+
+          Next steps:
+          1. Review the validation report
+          2. Fix any offline endpoints
+          3. Re-run: ansible-playbook -i inventory validate_endpoints.yml
+          ==========================================

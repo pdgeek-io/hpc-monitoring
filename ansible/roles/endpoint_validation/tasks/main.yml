@@ -1,0 +1,136 @@
+---
+# Endpoint Validation and Verification Role
+# Validates that all monitoring endpoints are properly configured and accessible
+
+- name: Display validation information
+  debug:
+    msg: "Validating monitoring endpoints for {{ inventory_hostname }} ({{ node_role | default('unknown') }})"
+
+- name: Gather facts if not already gathered
+  setup:
+  when: ansible_facts is not defined or ansible_facts | length == 0
+
+- name: Check if Node Exporter is running
+  uri:
+    url: "http://{{ ansible_default_ipv4.address | default('localhost') }}:{{ node_exporter_port | default('9100') }}/metrics"
+    method: GET
+    status_code: 200
+    timeout: 5
+  register: node_exporter_check
+  ignore_errors: yes
+  when: "'node_exporter' in group_names or 'compute_nodes' in group_names or 'login_nodes' in group_names or 'head_nodes' in group_names"
+
+- name: Report Node Exporter status
+  debug:
+    msg: "✓ Node Exporter is {{ 'ONLINE' if node_exporter_check.status == 200 else 'OFFLINE' }} on {{ inventory_hostname }}"
+  when: node_exporter_check is defined
+
+- name: Check if NVIDIA DCGM Exporter is running
+  uri:
+    url: "http://{{ ansible_default_ipv4.address | default('localhost') }}:{{ nvidia_dcgm_port | default('9400') }}/metrics"
+    method: GET
+    status_code: 200
+    timeout: 5
+  register: dcgm_check
+  ignore_errors: yes
+  when: "'gpu_nodes' in group_names"
+
+- name: Report DCGM Exporter status
+  debug:
+    msg: "✓ DCGM Exporter is {{ 'ONLINE' if dcgm_check.status == 200 else 'OFFLINE' }} on {{ inventory_hostname }}"
+  when: dcgm_check is defined
+
+- name: Check if SLURM Exporter is running
+  uri:
+    url: "http://{{ ansible_default_ipv4.address | default('localhost') }}:{{ slurm_exporter_port | default('9091') }}/metrics"
+    method: GET
+    status_code: 200
+    timeout: 5
+  register: slurm_check
+  ignore_errors: yes
+  when: "'job_scheduler' in group_names"
+
+- name: Report SLURM Exporter status
+  debug:
+    msg: "✓ SLURM Exporter is {{ 'ONLINE' if slurm_check.status == 200 else 'OFFLINE' }} on {{ inventory_hostname }}"
+  when: slurm_check is defined
+
+- name: Check if WEKA Exporter is running
+  uri:
+    url: "http://{{ ansible_default_ipv4.address | default('localhost') }}:{{ weka_exporter_port | default('9101') }}/metrics"
+    method: GET
+    status_code: 200
+    timeout: 5
+  register: weka_check
+  ignore_errors: yes
+  when: "'storage_weka' in group_names"
+
+- name: Report WEKA Exporter status
+  debug:
+    msg: "✓ WEKA Exporter is {{ 'ONLINE' if weka_check.status == 200 else 'OFFLINE' }} on {{ inventory_hostname }}"
+  when: weka_check is defined
+
+- name: Check if MooseFS Exporter is running
+  uri:
+    url: "http://{{ ansible_default_ipv4.address | default('localhost') }}:{{ moosefs_exporter_port | default('9105') }}/metrics"
+    method: GET
+    status_code: 200
+    timeout: 5
+  register: moosefs_check
+  ignore_errors: yes
+  when: "'storage_moosefs' in group_names"
+
+- name: Report MooseFS Exporter status
+  debug:
+    msg: "✓ MooseFS Exporter is {{ 'ONLINE' if moosefs_check.status == 200 else 'OFFLINE' }} on {{ inventory_hostname }}"
+  when: moosefs_check is defined
+
+- name: Check if iDRAC Exporter is running
+  uri:
+    url: "http://{{ ansible_default_ipv4.address | default('localhost') }}:{{ idrac_exporter_port | default('9610') }}/metrics"
+    method: GET
+    status_code: 200
+    timeout: 5
+  register: idrac_check
+  ignore_errors: yes
+  when: "'poweredge_servers' in group_names"
+
+- name: Report iDRAC Exporter status
+  debug:
+    msg: "✓ iDRAC Exporter is {{ 'ONLINE' if idrac_check.status == 200 else 'OFFLINE' }} on {{ inventory_hostname }}"
+  when: idrac_check is defined
+
+- name: Test network connectivity to Prometheus server
+  wait_for:
+    host: "{{ groups['grafana'][0] }}"
+    port: 9090
+    timeout: 5
+  register: prometheus_connectivity
+  ignore_errors: yes
+  when: groups['grafana'] is defined and groups['grafana'] | length > 0
+
+- name: Report Prometheus connectivity
+  debug:
+    msg: "✓ Can reach Prometheus server at {{ groups['grafana'][0] }}"
+  when: prometheus_connectivity is defined and prometheus_connectivity is succeeded
+
+- name: Collect validation results
+  set_fact:
+    endpoint_validation_results:
+      hostname: "{{ inventory_hostname }}"
+      node_role: "{{ node_role | default('unknown') }}"
+      ip_address: "{{ ansible_default_ipv4.address | default('unknown') }}"
+      node_exporter: "{{ 'online' if (node_exporter_check is defined and node_exporter_check.status == 200) else 'n/a' }}"
+      dcgm_exporter: "{{ 'online' if (dcgm_check is defined and dcgm_check.status == 200) else 'n/a' }}"
+      slurm_exporter: "{{ 'online' if (slurm_check is defined and slurm_check.status == 200) else 'n/a' }}"
+      weka_exporter: "{{ 'online' if (weka_check is defined and weka_check.status == 200) else 'n/a' }}"
+      moosefs_exporter: "{{ 'online' if (moosefs_check is defined and moosefs_check.status == 200) else 'n/a' }}"
+      idrac_exporter: "{{ 'online' if (idrac_check is defined and idrac_check.status == 200) else 'n/a' }}"
+      prometheus_reachable: "{{ 'yes' if (prometheus_connectivity is defined and prometheus_connectivity is succeeded) else 'no' }}"
+
+- name: Save validation results to file
+  copy:
+    content: "{{ endpoint_validation_results | to_nice_json }}"
+    dest: "/tmp/endpoint_validation_{{ inventory_hostname }}.json"
+  delegate_to: localhost
+  become: no

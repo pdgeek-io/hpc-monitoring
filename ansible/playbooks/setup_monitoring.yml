@@ -1,0 +1,104 @@
+---
+# Complete HPC Monitoring Setup
+# This playbook sets up the entire monitoring infrastructure in the correct order
+
+- name: Display Setup Information
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Show deployment plan
+      debug:
+        msg: |
+          ==========================================
+          HPC Monitoring - Complete Setup
+          ==========================================
+
+          This playbook will:
+          1. Deploy exporters to all HPC nodes
+          2. Deploy Grafana CE stack to monitoring server
+          3. Auto-configure Prometheus with all endpoints
+          4. Validate all endpoints
+          5. Generate validation report
+
+          Infrastructure to be configured:
+          - Login nodes: {{ groups['login_nodes'] | default([]) | length }}
+          - Head nodes: {{ groups['head_nodes'] | default([]) | length }}
+          - Compute nodes: {{ groups['compute_nodes'] | default([]) | length }}
+          - GPU nodes: {{ groups['gpu_nodes'] | default([]) | length }}
+          - Storage nodes: {{ groups['storage_nodes'] | default([]) | length }}
+          - Job scheduler: {{ groups['job_scheduler'] | default([]) | length }}
+          - PowerEdge servers: {{ groups['poweredge_servers'] | default([]) | length }}
+          - Network devices: {{ groups['network_devices'] | default([]) | length }}
+
+          Press Ctrl+C to abort, or wait 10 seconds to continue...
+
+    - name: Pause for review
+      pause:
+        seconds: 10
+
+# Step 1: Deploy exporters to infrastructure
+- import_playbook: hpc_fullstack_monitoring.yml
+
+# Step 2: Deploy Grafana CE stack with auto-configured endpoints
+- import_playbook: grafana_stack.yml
+
+# Step 3: Wait for services to be ready
+- name: Wait for Monitoring Stack
+  hosts: grafana
+  gather_facts: no
+  tasks:
+    - name: Wait for Prometheus to be ready
+      uri:
+        url: "http://localhost:9090/-/healthy"
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 30
+      delay: 10
+
+    - name: Wait for Grafana to be ready
+      uri:
+        url: "http://localhost:3000/api/health"
+        status_code: 200
+      register: result
+      until: result.status == 200
+      retries: 30
+      delay: 10
+
+# Step 4: Validate all endpoints
+- import_playbook: validate_endpoints.yml
+
+# Step 5: Display completion summary
+- name: Setup Complete
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Display success message
+      debug:
+        msg: |
+          ==========================================
+          HPC Monitoring Setup Complete!
+          ==========================================
+
+          Grafana CE Stack:
+          - Grafana: http://{{ groups['grafana'][0] }}:3000 (admin/admin)
+          - Prometheus: http://{{ groups['grafana'][0] }}:9090
+          - Alertmanager: http://{{ groups['grafana'][0] }}:9093
+
+          Validation:
+          - Report: /tmp/hpc_endpoint_validation_report.txt
+          - JSON results: /tmp/endpoint_validation_*.json
+
+          Next Steps:
+          1. Log into Grafana and change admin password
+          2. Review Prometheus targets: http://{{ groups['grafana'][0] }}:9090/targets
+          3. Import additional dashboards from grafana_dashboards/
+          4. Configure alerting in alertmanager.yml
+          5. Review validation report for any offline endpoints
+
+          Documentation:
+          - See CLAUDE.md for operational procedures
+          - See README.md for feature overview
+          - See VERSIONS.md for component versions
+
+          ==========================================

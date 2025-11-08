@@ -1,32 +1,134 @@
-[hpc1]
-rocky1.example.com
-rocky2.example.com
+# HPC Monitoring - Inventory with Cluster Structure
+# Configure your HPC infrastructure below
+# See inventory.example for comprehensive cluster setup
 
-[hpc2]
-rocky3.example.com
-rocky4.example.com
+# ==========================================
+# HPC Cluster 1 - Login and Head Nodes
+# ==========================================
+
+[hpc1_login_nodes]
+# Login/Jump nodes for HPC1
+
+[hpc1_head_nodes]
+# Head/Management nodes for HPC1
+
+[hpc1_compute_nodes]
+# Compute nodes for HPC1
+rocky1.example.com node_role=compute
+rocky2.example.com node_role=compute
+
+# ==========================================
+# HPC Cluster 2 - Login and Head Nodes
+# ==========================================
+
+[hpc2_login_nodes]
+# Login/Jump nodes for HPC2
+
+[hpc2_head_nodes]
+# Head/Management nodes for HPC2
+
+[hpc2_compute_nodes]
+# Compute nodes for HPC2
+rocky3.example.com node_role=compute
+rocky4.example.com node_role=compute
+
+# ==========================================
+# GPU Nodes
+# ==========================================
+
+[hpc1_gpu_nodes]
+gpu1.example.com node_role=gpu gpu_type=a100
+
+[hpc2_gpu_nodes]
+
+# ==========================================
+# Infrastructure Services
+# ==========================================
+
+[job_scheduler]
+scheduler.example.com slurm_role=controller
+
+[storage_weka]
+weka1.example.com storage_type=weka
+
+[storage_moosefs]
+moosefs-master.example.com moosefs_role=master
+moosefs-chunk1.example.com moosefs_role=chunkserver
+moosefs-chunk2.example.com moosefs_role=chunkserver
+
+[poweredge_servers]
+# Dell PowerEdge servers with iDRAC monitoring
+poweredge1.example.com server_generation=16G
+poweredge2.example.com server_generation=17G
+
+[network_devices]
+# Network switches and routers (SNMP monitoring)
 
 [grafana]
 grafana.example.com
 
-[job_scheduler]
-scheduler.example.com
+# ==========================================
+# Logical Groupings
+# ==========================================
 
-[storage_weka]
-weka1.example.com
+[hpc1:children]
+hpc1_login_nodes
+hpc1_head_nodes
+hpc1_compute_nodes
+hpc1_gpu_nodes
 
-[gpu_nodes]
-gpu1.example.com
+[hpc2:children]
+hpc2_login_nodes
+hpc2_head_nodes
+hpc2_compute_nodes
+hpc2_gpu_nodes
 
-[poweredge_servers]
-# Dell PowerEdge servers for hardware monitoring via iDRAC
-# The exporter will monitor: health, CPU, memory, power, cooling, fans, PSU, RAID
-# Tag servers with generation for comparison (e.g., gen=16G or gen=17G)
-poweredge1.example.com  # gen=16G
-poweredge2.example.com  # gen=17G
+[login_nodes:children]
+hpc1_login_nodes
+hpc2_login_nodes
 
-[storage_moosefs]
-# MooseFS distributed filesystem nodes
-moosefs-master.example.com
-moosefs-chunk1.example.com
-moosefs-chunk2.example.com
+[head_nodes:children]
+hpc1_head_nodes
+hpc2_head_nodes
+
+[compute_nodes:children]
+hpc1_compute_nodes
+hpc2_compute_nodes
+
+[gpu_nodes:children]
+hpc1_gpu_nodes
+hpc2_gpu_nodes
+
+[storage_nodes:children]
+storage_weka
+storage_moosefs
+
+[node_exporter:children]
+login_nodes
+head_nodes
+compute_nodes
+storage_nodes
+
+[nvidia_dcgm:children]
+gpu_nodes
+
+# ==========================================
+# Global Variables
+# ==========================================
+
+[all:vars]
+ansible_user=ansible
+ansible_become=true
+ansible_python_interpreter=/usr/bin/python3
+
+# Exporter ports
+node_exporter_port=9100
+nvidia_dcgm_port=9400
+slurm_exporter_port=9091
+weka_exporter_port=9101
+moosefs_exporter_port=9105
+idrac_exporter_port=9610
+
+# Prometheus configuration
+prometheus_cluster_name=hpc-production
+prometheus_environment=production

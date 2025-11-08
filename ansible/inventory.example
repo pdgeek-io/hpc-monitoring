@@ -1,0 +1,223 @@
+# HPC Monitoring - Comprehensive Inventory Example
+# This file demonstrates proper HPC cluster architecture
+# Copy to 'inventory' and customize for your environment
+
+# ==========================================
+# HPC Cluster 1 - Production
+# ==========================================
+
+[hpc1_login_nodes]
+# Login/Jump nodes - where users SSH in
+hpc1-login01.example.com ansible_host=10.0.1.10 node_role=login
+hpc1-login02.example.com ansible_host=10.0.1.11 node_role=login
+
+[hpc1_head_nodes]
+# Head/Management nodes - run scheduler, monitoring, etc.
+hpc1-head01.example.com ansible_host=10.0.1.20 node_role=head primary=true
+hpc1-head02.example.com ansible_host=10.0.1.21 node_role=head primary=false
+
+[hpc1_compute_nodes]
+# Compute nodes - where jobs execute
+hpc1-compute[01:20].example.com ansible_host=10.0.2.[1:20] node_role=compute cpu_type=xeon_gold
+
+[hpc1_gpu_nodes]
+# GPU compute nodes
+hpc1-gpu[01:05].example.com ansible_host=10.0.3.[1:5] node_role=gpu gpu_type=a100 gpu_count=8
+
+[hpc1_highmem_nodes]
+# High memory nodes (large RAM)
+hpc1-himem[01:04].example.com ansible_host=10.0.4.[1:4] node_role=highmem memory_gb=1024
+
+# ==========================================
+# HPC Cluster 2 - Development/Testing
+# ==========================================
+
+[hpc2_login_nodes]
+hpc2-login01.example.com ansible_host=10.0.10.10 node_role=login
+
+[hpc2_head_nodes]
+hpc2-head01.example.com ansible_host=10.0.10.20 node_role=head primary=true
+
+[hpc2_compute_nodes]
+hpc2-compute[01:10].example.com ansible_host=10.0.11.[1:10] node_role=compute cpu_type=xeon_silver
+
+[hpc2_gpu_nodes]
+hpc2-gpu[01:02].example.com ansible_host=10.0.12.[1:2] node_role=gpu gpu_type=h100 gpu_count=8
+
+# ==========================================
+# Infrastructure Services
+# ==========================================
+
+[job_scheduler]
+# SLURM controller/scheduler nodes
+hpc1-head01.example.com slurm_role=controller
+hpc1-head02.example.com slurm_role=backup
+
+[storage_head_nodes]
+# Storage management nodes
+storage-mgmt01.example.com ansible_host=10.0.5.10 storage_role=management
+storage-mgmt02.example.com ansible_host=10.0.5.11 storage_role=management
+
+[storage_weka]
+# WEKA distributed filesystem nodes
+weka[01:06].example.com ansible_host=10.0.5.[20:25] storage_type=weka
+
+[storage_moosefs]
+# MooseFS distributed filesystem
+moosefs-master.example.com ansible_host=10.0.5.30 moosefs_role=master
+moosefs-chunk[01:10].example.com ansible_host=10.0.5.[31:40] moosefs_role=chunkserver
+
+[storage_nfs]
+# NFS servers
+nfs01.example.com ansible_host=10.0.5.50 nfs_role=primary
+nfs02.example.com ansible_host=10.0.5.51 nfs_role=secondary
+
+# ==========================================
+# Dell PowerEdge Hardware Monitoring
+# ==========================================
+
+[poweredge_servers]
+# Dell PowerEdge servers with iDRAC monitoring
+# Tag with generation for comparison
+hpc1-compute[01:20].example.com server_generation=16G idrac_ip=10.0.100.[1:20]
+hpc2-compute[01:10].example.com server_generation=17G idrac_ip=10.0.101.[1:10]
+hpc1-gpu[01:05].example.com server_generation=17G idrac_ip=10.0.102.[1:5]
+
+# ==========================================
+# Network Infrastructure
+# ==========================================
+
+[network_switches]
+# Ethernet switches (SNMP monitoring)
+switch-core01.example.com ansible_host=10.0.200.1 device_type=core_switch vendor=arista
+switch-core02.example.com ansible_host=10.0.200.2 device_type=core_switch vendor=arista
+switch-leaf[01:10].example.com ansible_host=10.0.200.[11:20] device_type=leaf_switch vendor=arista
+
+[network_ib_switches]
+# InfiniBand fabric switches
+ib-switch[01:04].example.com ansible_host=10.0.201.[1:4] device_type=ib_switch vendor=nvidia
+
+[network_routers]
+# Edge routers
+router-edge01.example.com ansible_host=10.0.202.1 device_type=router vendor=cisco
+
+# ==========================================
+# Monitoring Infrastructure
+# ==========================================
+
+[grafana]
+# Monitoring server running Grafana CE stack
+monitoring.example.com ansible_host=10.0.250.10
+
+[grafana:vars]
+# Monitoring server specific vars
+grafana_admin_password=changeme_secure
+prometheus_retention_days=90
+loki_retention_days=90
+
+# ==========================================
+# Logical Groupings for Ansible
+# ==========================================
+
+# All HPC1 nodes
+[hpc1:children]
+hpc1_login_nodes
+hpc1_head_nodes
+hpc1_compute_nodes
+hpc1_gpu_nodes
+hpc1_highmem_nodes
+
+# All HPC2 nodes
+[hpc2:children]
+hpc2_login_nodes
+hpc2_head_nodes
+hpc2_compute_nodes
+hpc2_gpu_nodes
+
+# All login nodes across clusters
+[login_nodes:children]
+hpc1_login_nodes
+hpc2_login_nodes
+
+# All head nodes across clusters
+[head_nodes:children]
+hpc1_head_nodes
+hpc2_head_nodes
+
+# All compute nodes (CPU only)
+[compute_nodes:children]
+hpc1_compute_nodes
+hpc2_compute_nodes
+
+# All GPU nodes
+[gpu_nodes:children]
+hpc1_gpu_nodes
+hpc2_gpu_nodes
+
+# All high memory nodes
+[highmem_nodes:children]
+hpc1_highmem_nodes
+
+# All storage nodes
+[storage_nodes:children]
+storage_head_nodes
+storage_weka
+storage_moosefs
+storage_nfs
+
+# All network devices
+[network_devices:children]
+network_switches
+network_ib_switches
+network_routers
+
+# All nodes that need Node Exporter
+[node_exporter:children]
+login_nodes
+head_nodes
+compute_nodes
+highmem_nodes
+storage_nodes
+
+# All nodes that need NVIDIA DCGM exporter
+[nvidia_dcgm:children]
+gpu_nodes
+
+# ==========================================
+# Global Variables
+# ==========================================
+
+[all:vars]
+# Ansible connection settings
+ansible_user=ansible
+ansible_become=true
+ansible_python_interpreter=/usr/bin/python3
+
+# Exporter ports
+node_exporter_port=9100
+nvidia_dcgm_port=9400
+slurm_exporter_port=9091
+weka_exporter_port=9101
+moosefs_exporter_port=9105
+idrac_exporter_port=9610
+
+# Scrape intervals (Prometheus)
+node_exporter_scrape_interval=15s
+gpu_scrape_interval=30s
+slurm_scrape_interval=30s
+weka_scrape_interval=30s
+moosefs_scrape_interval=30s
+idrac_scrape_interval=60s
+snmp_scrape_interval=60s
+
+# Cluster metadata
+prometheus_cluster_name=hpc-production
+prometheus_environment=production
+prometheus_datacenter=dc1
+
+# Network settings
+cluster_network=10.0.0.0/16
+management_network=10.0.0.0/24
+compute_network=10.0.2.0/23
+storage_network=10.0.5.0/24
+ib_network=10.1.0.0/16

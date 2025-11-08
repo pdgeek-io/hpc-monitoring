@@ -1,9 +1,14 @@
 ---
+- name: Check if running on Rocky Linux
+  debug:
+    msg: "Deploying Node Exporter on {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
 - name: Ensure node_exporter user exists
   user:
     name: "{{ node_exporter_user }}"
     system: yes
     shell: /sbin/nologin
+    comment: "Prometheus Node Exporter"
 
 - name: Download node_exporter
   get_url:

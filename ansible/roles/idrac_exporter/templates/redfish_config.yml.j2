@@ -1,0 +1,22 @@
+# Redfish Exporter Configuration for Dell iDRAC
+# Monitors PowerEdge servers: health, compute, memory, power, cooling, fans, PSU, RAID
+
+hosts:
+{% for idrac in idrac_hosts %}
+  {{ idrac.host }}:
+    username: {{ idrac.username }}
+    password: {{ idrac.password }}
+    host_power_state: true
+    chassis_power_state: true
+    chassis_thermal_state: true
+    chassis_fan_state: true
+    chassis_power_supply_state: true
+    chassis_processor_state: true
+    chassis_memory_state: true
+    chassis_storage_controller_state: true
+    chassis_storage_drive_state: true
+    manager_state: true
+{% endfor %}
+
+# Global timeout for Redfish API calls
+timeout: {{ idrac_timeout }}

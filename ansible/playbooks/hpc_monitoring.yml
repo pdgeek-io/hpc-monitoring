@@ -22,3 +22,9 @@
   become: yes
   roles:
     - wekafs_exporter
+
+- name: Configure Dell PowerEdge iDRAC Monitoring
+  hosts: poweredge_servers
+  become: yes
+  roles:
+    - idrac_exporter

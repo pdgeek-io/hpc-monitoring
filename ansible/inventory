@@ -17,3 +17,9 @@ weka1.example.com
 
 [gpu_nodes]
 gpu1.example.com
+
+[poweredge_servers]
+# Dell PowerEdge servers for hardware monitoring via iDRAC
+# The exporter will monitor: health, CPU, memory, power, cooling, fans, PSU, RAID
+poweredge1.example.com
+poweredge2.example.com

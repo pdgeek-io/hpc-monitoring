@@ -1,0 +1,25 @@
+---
+galaxy_info:
+  author: HPC Monitoring Team
+  description: Prometheus Node Exporter for Rocky Linux HPC nodes
+  license: MIT
+  min_ansible_version: 2.9
+
+  platforms:
+    - name: EL
+      versions:
+        - 8
+        - 9
+    - name: Rocky
+      versions:
+        - 8
+        - 9
+
+  galaxy_tags:
+    - monitoring
+    - prometheus
+    - node-exporter
+    - rocky-linux
+    - hpc
+
+dependencies: []

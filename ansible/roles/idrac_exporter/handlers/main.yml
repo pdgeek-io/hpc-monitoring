@@ -1,0 +1,5 @@
+---
+- name: Restart idrac_exporter
+  systemd:
+    name: idrac_exporter
+    state: restarted

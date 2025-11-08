@@ -1,0 +1,25 @@
+[Unit]
+Description=Dell iDRAC Redfish Prometheus Exporter
+Documentation=https://github.com/jenningsloy318/redfish_exporter
+After=network.target
+
+[Service]
+Type=simple
+User={{ idrac_exporter_user }}
+Group={{ idrac_exporter_user }}
+ExecStart={{ idrac_exporter_install_dir }}/redfish_exporter \
+  --config.file={{ idrac_exporter_config_dir }}/config.yml \
+  --web.listen-address=:{{ idrac_exporter_port }}
+Restart=always
+RestartSec=5s
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/
+ReadWritePaths={{ idrac_exporter_config_dir }}
+
+[Install]
+WantedBy=multi-user.target

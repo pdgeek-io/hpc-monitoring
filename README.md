@@ -324,3 +324,230 @@ This enables researchers to:
 - Optimize job submission strategies
 - Identify bottlenecks in the HPC pipeline
 - Correlate job patterns with resource utilization
+
+---
+
+# 🚀 Docker-Based Deployment (Recommended)
+
+## Grafana Community Edition Full Stack
+
+The monitoring stack has been upgraded to run as Docker containers with the complete Grafana CE observability platform.
+
+### What's Included
+
+**Full Observability Stack:**
+- ✅ **Grafana**: Dashboards and visualization
+- ✅ **Prometheus**: Metrics collection and 30-day retention
+- ✅ **Loki**: Log aggregation with 30-day retention
+- ✅ **Tempo**: Distributed tracing for 30 days
+- ✅ **Alertmanager**: Intelligent alert routing
+- ✅ **Promtail**: Automatic log collection
+
+**Built-in Exporters:**
+- ✅ Node Exporter (host metrics)
+- ✅ cAdvisor (container metrics)
+- ✅ Pushgateway (batch jobs)
+- ✅ Blackbox Exporter (endpoint probing)
+- ✅ SNMP Exporter (network devices/iDRAC)
+
+### Quick Deployment
+
+#### Option 1: Ansible (Production)
+
+```bash
+# Deploy to monitoring server defined in inventory
+ansible-playbook -i ansible/inventory ansible/playbooks/grafana_stack.yml
+
+# Stack deployed to /opt/hpc-monitoring with systemd integration
+# Manage with: systemctl status hpc-monitoring-stack
+```
+
+#### Option 2: Docker Compose (Development/Testing)
+
+```bash
+cd docker/grafana-stack
+
+# Start everything
+./start-stack.sh
+
+# Or manually
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop
+docker-compose down
+```
+
+### Access Points
+
+After deployment, access services at:
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| Grafana | http://your-server:3000 | admin/admin |
+| Prometheus | http://your-server:9090 | - |
+| Loki | http://your-server:3100 | - |
+| Tempo | http://your-server:3200 | - |
+| Alertmanager | http://your-server:9093 | - |
+
+**⚠️ Change default Grafana password immediately!**
+
+### Configuration
+
+#### Update Prometheus Targets
+
+Edit `docker/grafana-stack/prometheus/prometheus.yml` to add your HPC nodes:
+
+```yaml
+- job_name: 'node-exporter-hpc1'
+  static_configs:
+    - targets:
+        - 'rocky1.example.com:9100'
+        - 'rocky2.example.com:9100'
+```
+
+#### Configure Alerts
+
+Add notification channels in `docker/grafana-stack/alertmanager/alertmanager.yml`:
+
+```yaml
+receivers:
+  - name: 'email'
+    email_configs:
+      - to: 'team@example.com'
+        from: 'alerts@example.com'
+        smarthost: 'smtp.example.com:587'
+```
+
+#### Adjust Retention
+
+Edit retention periods in respective config files:
+- Prometheus: `--storage.tsdb.retention.time=30d` in docker-compose.yml
+- Loki: `retention_period: 30d` in loki-config.yml
+- Tempo: `block_retention: 720h` in tempo.yml
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│         Monitoring Server (Docker Host)              │
+│                                                      │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐          │
+│  │ Grafana  │  │Prometheus│  │   Loki   │          │
+│  │  :3000   │  │  :9090   │  │  :3100   │          │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘          │
+│       │             │               │                │
+│  ┌────┴─────┐  ┌───┴──────┐  ┌────┴─────┐          │
+│  │  Tempo   │  │Alertmgr  │  │ Promtail │          │
+│  │  :3200   │  │  :9093   │  │          │          │
+│  └──────────┘  └──────────┘  └──────────┘          │
+│                                                      │
+│  Local Exporters:                                   │
+│  • Node Exporter :9100                              │
+│  • cAdvisor :8080                                   │
+│  • Pushgateway :9091                                │
+│  • Blackbox :9115                                   │
+│  • SNMP :9116                                       │
+└─────────────────────────────────────────────────────┘
+                       │
+                       │ Scrapes metrics from
+                       ▼
+┌─────────────────────────────────────────────────────┐
+│              HPC Infrastructure                      │
+│                                                      │
+│  Rocky Linux Nodes → Node Exporter :9100            │
+│  GPU Nodes → DCGM Exporter :9400                    │
+│  SLURM → SLURM Exporter :9091                       │
+│  WEKA → WEKA Exporter :9101                         │
+│  MooseFS → MooseFS Exporter :9105                   │
+│  PowerEdge → iDRAC Exporter :9610                   │
+└─────────────────────────────────────────────────────┘
+```
+
+### Data Persistence
+
+All data stored in Docker volumes:
+```bash
+# List volumes
+docker volume ls | grep hpc-monitoring
+
+# Backup volumes
+docker-compose down
+docker run --rm -v hpc-monitoring_prometheus_data:/data \
+    -v $(pwd)/backups:/backup ubuntu \
+    tar czf /backup/prometheus-$(date +%Y%m%d).tar.gz /data
+
+# Restore
+docker run --rm -v hpc-monitoring_prometheus_data:/data \
+    -v $(pwd)/backups:/backup ubuntu \
+    tar xzf /backup/prometheus-YYYYMMDD.tar.gz -C /
+```
+
+### Resource Requirements
+
+**Minimum (Testing):**
+- CPU: 4 cores
+- RAM: 8 GB
+- Disk: 100 GB SSD
+
+**Recommended (Production):**
+- CPU: 8+ cores
+- RAM: 16+ GB
+- Disk: 500 GB+ SSD
+
+### Integrated Observability
+
+The stack provides complete observability with:
+
+1. **Metrics** (Prometheus)
+   - All HPC infrastructure metrics
+   - 30-day retention
+   - PromQL queries
+
+2. **Logs** (Loki)
+   - System logs, application logs, SLURM logs
+   - Log correlation with metrics
+   - LogQL queries
+
+3. **Traces** (Tempo)
+   - Distributed application tracing
+   - Integration with logs and metrics
+   - Performance analysis
+
+4. **Dashboards** (Grafana)
+   - Pre-built HPC dashboards
+   - Auto-provisioned datasources
+   - Unified view of metrics, logs, traces
+
+5. **Alerts** (Alertmanager)
+   - HPC-specific alert rules
+   - Multi-channel notifications
+   - Intelligent alert grouping
+
+### Troubleshooting
+
+**Services won't start:**
+```bash
+# Check logs
+docker-compose logs <service-name>
+
+# Verify disk space
+df -h
+
+# Check ports
+sudo netstat -tlnp | grep -E '3000|9090|3100|3200|9093'
+```
+
+**High memory usage:**
+- Reduce Prometheus scrape intervals
+- Lower retention periods
+- Add more RAM
+
+**Missing metrics:**
+- Verify Prometheus targets: http://your-server:9090/targets
+- Check exporter accessibility: `curl http://target:port/metrics`
+- Review firewall rules
+
+See `docker/grafana-stack/README.md` for comprehensive documentation.

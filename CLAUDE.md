@@ -257,3 +257,95 @@ Example:
 ```bash
 ansible-playbook -i ansible/inventory ansible/playbooks/hpc_fullstack_monitoring.yml --tags storage,slurm
 ```
+
+## Docker-Based Deployment (Recommended)
+
+### Grafana Community Edition Full Stack
+
+The monitoring infrastructure has been upgraded to run as Docker containers with the complete Grafana CE observability stack:
+
+**Core Platform:**
+- **Grafana** (port 3000): Dashboards and visualization
+- **Prometheus** (port 9090): Metrics storage (30-day retention)
+- **Loki** (port 3100): Log aggregation (30-day retention)
+- **Tempo** (port 3200): Distributed tracing (30-day retention)
+- **Alertmanager** (port 9093): Alert routing and management
+
+**Built-in Exporters:**
+- **Node Exporter** (port 9100): Monitoring server host metrics
+- **cAdvisor** (port 8080): Container performance metrics
+- **Pushgateway** (port 9091): Batch job metrics
+- **Blackbox Exporter** (port 9115): Endpoint availability probing
+- **SNMP Exporter** (port 9116): Network devices and iDRAC
+- **Promtail**: Log collection and shipping
+
+### Quick Start Commands
+
+Deploy the full stack:
+```bash
+# Using Ansible (recommended for production)
+ansible-playbook -i ansible/inventory ansible/playbooks/grafana_stack.yml
+
+# Using Docker Compose directly
+cd docker/grafana-stack
+./start-stack.sh
+
+# Or manually
+docker-compose up -d
+```
+
+Manage the stack:
+```bash
+# View logs
+docker-compose -f /opt/hpc-monitoring/docker-compose.yml logs -f
+
+# Restart services
+docker-compose -f /opt/hpc-monitoring/docker-compose.yml restart
+
+# Stop everything
+docker-compose -f /opt/hpc-monitoring/docker-compose.yml down
+
+# Using systemd (if deployed via Ansible)
+sudo systemctl status hpc-monitoring-stack
+sudo systemctl restart hpc-monitoring-stack
+```
+
+### Configuration Files
+
+All configurations are in `docker/grafana-stack/`:
+- `prometheus/prometheus.yml`: Scrape targets and alert rules
+- `loki/loki-config.yml`: Log retention and storage
+- `tempo/tempo.yml`: Tracing configuration
+- `alertmanager/alertmanager.yml`: Notification routing
+- `provisioning/datasources/`: Auto-configured datasources
+- `provisioning/dashboards/`: Auto-loaded dashboards
+
+### Data Persistence
+
+All data persists in Docker volumes:
+- `grafana_data`: Settings, dashboards, plugins
+- `prometheus_data`: Metrics (30 days)
+- `loki_data`: Logs (30 days)
+- `tempo_data`: Traces (30 days)
+- `alertmanager_data`: Alert state
+
+### Accessing Services
+
+After deployment:
+- Grafana UI: http://monitoring-server:3000 (admin/admin)
+- Prometheus UI: http://monitoring-server:9090
+- Alertmanager UI: http://monitoring-server:9093
+- All datasources pre-configured and linked
+
+### Hybrid Architecture
+
+The stack supports both containerized and traditional deployments:
+- **Monitoring Server**: Runs full Grafana CE stack in Docker
+- **HPC Nodes**: Run individual exporters via Ansible (node_exporter, dcgm_exporter, etc.)
+- **Prometheus**: Scrapes all remote exporters from the central container
+
+This provides:
+- Easy management of the observability platform
+- Consistent deployment across infrastructure
+- Full observability: metrics, logs, traces
+- Centralized alerting and visualization

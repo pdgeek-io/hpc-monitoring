@@ -1,0 +1,50 @@
+# Promtail Configuration for HPC Log Collection
+
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # System logs
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: varlogs
+          __path__: /var/log/*log
+          host: monitoring-server
+
+  # Docker container logs
+  - job_name: containers
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: containerlogs
+          __path__: /var/lib/docker/containers/*/*log
+
+  # SLURM logs
+  - job_name: slurm
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: slurm
+          component: scheduler
+          __path__: /var/log/slurm/*log
+
+  # HPC application logs
+  - job_name: hpc_apps
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: hpc-applications
+          __path__: /var/log/hpc/*log

@@ -1,8 +1,155 @@
 ---
-- name: Deploy Grafana Stack using Docker Compose
-  docker_compose:
-    project_src: "{{ grafana_stack_compose_file | dirname }}"
-    files:
-      - "{{ grafana_stack_compose_file | basename }}"
-    restarted: yes
-    project_name: "{{ grafana_stack_project_name }}"
+# Deploy HPC Monitoring - Full Grafana Community Edition Stack via Docker Compose
+
+- name: Display deployment information
+  debug:
+    msg: "Deploying Grafana CE Full Stack with Docker Compose on {{ ansible_distribution }} {{ ansible_distribution_version }}"
+
+- name: Ensure Docker is installed
+  package:
+    name:
+      - docker
+      - docker-compose
+    state: present
+
+- name: Ensure Docker service is running
+  service:
+    name: docker
+    state: started
+    enabled: yes
+
+- name: Create monitoring stack directory
+  file:
+    path: "{{ grafana_stack_deploy_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Copy Docker Compose configuration
+  synchronize:
+    src: "{{ grafana_stack_source_dir }}/"
+    dest: "{{ grafana_stack_deploy_dir }}/"
+    delete: yes
+    recursive: yes
+  delegate_to: "{{ inventory_hostname }}"
+
+- name: Ensure all configuration directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - "{{ grafana_stack_deploy_dir }}/prometheus"
+    - "{{ grafana_stack_deploy_dir }}/loki"
+    - "{{ grafana_stack_deploy_dir }}/tempo"
+    - "{{ grafana_stack_deploy_dir }}/alertmanager"
+    - "{{ grafana_stack_deploy_dir }}/provisioning/datasources"
+    - "{{ grafana_stack_deploy_dir }}/provisioning/dashboards"
+
+- name: Create textfile collector directory for Node Exporter
+  file:
+    path: /var/lib/node_exporter/textfile_collector
+    state: directory
+    mode: '0755'
+
+- name: Pull all Docker images
+  command: docker-compose pull
+  args:
+    chdir: "{{ grafana_stack_deploy_dir }}"
+  register: pull_result
+  changed_when: "'Pulling' in pull_result.stdout"
+
+- name: Start Grafana monitoring stack
+  command: docker-compose up -d
+  args:
+    chdir: "{{ grafana_stack_deploy_dir }}"
+  register: compose_result
+  changed_when: "'Creating' in compose_result.stdout or 'Starting' in compose_result.stdout"
+
+- name: Wait for Grafana to be ready
+  uri:
+    url: "http://localhost:3000/api/health"
+    status_code: 200
+    timeout: 5
+  register: grafana_health
+  until: grafana_health.status == 200
+  retries: 30
+  delay: 10
+
+- name: Wait for Prometheus to be ready
+  uri:
+    url: "http://localhost:9090/-/healthy"
+    status_code: 200
+    timeout: 5
+  register: prometheus_health
+  until: prometheus_health.status == 200
+  retries: 20
+  delay: 5
+
+- name: Wait for Loki to be ready
+  uri:
+    url: "http://localhost:3100/ready"
+    status_code: 200
+    timeout: 5
+  register: loki_health
+  until: loki_health.status == 200
+  retries: 20
+  delay: 5
+
+- name: Display deployment summary
+  debug:
+    msg: |
+      ==========================================
+      Grafana CE Full Stack Deployed!
+      ==========================================
+
+      Services Running:
+      - Grafana: http://{{ ansible_default_ipv4.address }}:3000 (admin/admin)
+      - Prometheus: http://{{ ansible_default_ipv4.address }}:9090
+      - Loki: http://{{ ansible_default_ipv4.address }}:3100
+      - Tempo: http://{{ ansible_default_ipv4.address }}:3200
+      - Alertmanager: http://{{ ansible_default_ipv4.address }}:9093
+
+      Exporters:
+      - Node Exporter: http://{{ ansible_default_ipv4.address }}:9100/metrics
+      - cAdvisor: http://{{ ansible_default_ipv4.address }}:8080
+      - Pushgateway: http://{{ ansible_default_ipv4.address }}:9091
+      - Blackbox Exporter: http://{{ ansible_default_ipv4.address }}:9115
+      - SNMP Exporter: http://{{ ansible_default_ipv4.address }}:9116
+
+      Next Steps:
+      1. Update Prometheus scrape targets in prometheus.yml
+      2. Configure Alertmanager notifications in alertmanager.yml
+      3. Dashboards are auto-provisioned from grafana_dashboards/
+
+      Manage Stack:
+      - View logs: docker-compose -f {{ grafana_stack_deploy_dir }}/docker-compose.yml logs -f
+      - Restart: docker-compose -f {{ grafana_stack_deploy_dir }}/docker-compose.yml restart
+      - Stop: docker-compose -f {{ grafana_stack_deploy_dir }}/docker-compose.yml down
+      ==========================================
+
+- name: Create systemd service for monitoring stack
+  copy:
+    dest: /etc/systemd/system/hpc-monitoring-stack.service
+    content: |
+      [Unit]
+      Description=HPC Monitoring Stack (Grafana CE)
+      Requires=docker.service
+      After=docker.service
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      WorkingDirectory={{ grafana_stack_deploy_dir }}
+      ExecStart=/usr/bin/docker-compose up -d
+      ExecStop=/usr/bin/docker-compose down
+      ExecReload=/usr/bin/docker-compose restart
+
+      [Install]
+      WantedBy=multi-user.target
+    mode: '0644'
+
+- name: Enable monitoring stack systemd service
+  systemd:
+    name: hpc-monitoring-stack
+    enabled: yes
+    daemon_reload: yes

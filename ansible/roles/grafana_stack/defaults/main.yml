@@ -1,3 +1,28 @@
-# Default variables for Grafana Stack deployment
-grafana_stack_compose_file: "{{ playbook_dir }}/../../docker/grafana-stack/docker-compose.yml"
-grafana_stack_project_name: "grafana_stack"
+# Default variables for Grafana CE Full Stack deployment
+
+# Source directory (where docker-compose.yml lives in the repo)
+grafana_stack_source_dir: "{{ playbook_dir }}/../../docker/grafana-stack"
+
+# Deployment directory on target server
+grafana_stack_deploy_dir: "/opt/hpc-monitoring"
+
+# Docker Compose project name
+grafana_stack_project_name: "hpc-monitoring"
+
+# Grafana configuration
+grafana_admin_user: "admin"
+grafana_admin_password: "admin"  # Change this in production!
+
+# Data retention settings
+prometheus_retention_days: 30
+loki_retention_days: 30
+tempo_retention_hours: 720  # 30 days
+
+# Enable/disable components
+enable_loki: true
+enable_tempo: true
+enable_alertmanager: true
+enable_cadvisor: true
+enable_pushgateway: true
+enable_blackbox_exporter: true
+enable_snmp_exporter: true

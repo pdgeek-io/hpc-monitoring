@@ -1,0 +1,207 @@
+# Prometheus Configuration for HPC Full-Stack Monitoring
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'hpc-production'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load alert rules
+rule_files:
+  - 'alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          component: 'prometheus'
+
+  # Grafana monitoring
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+        labels:
+          component: 'grafana'
+
+  # Loki monitoring
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+        labels:
+          component: 'loki'
+
+  # Tempo monitoring
+  - job_name: 'tempo'
+    static_configs:
+      - targets: ['tempo:3200']
+        labels:
+          component: 'tempo'
+
+  # Alertmanager monitoring
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+        labels:
+          component: 'alertmanager'
+
+  # Node Exporter - Local monitoring server
+  - job_name: 'node-exporter-local'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          component: 'node-exporter'
+          instance: 'monitoring-server'
+
+  # Node Exporter - Rocky Linux Compute Nodes (HPC1 cluster)
+  - job_name: 'node-exporter-hpc1'
+    static_configs:
+      - targets:
+          - 'rocky1.example.com:9100'
+          - 'rocky2.example.com:9100'
+        labels:
+          cluster: 'hpc1'
+          role: 'compute'
+          os: 'rocky-linux'
+
+  # Node Exporter - Rocky Linux Compute Nodes (HPC2 cluster)
+  - job_name: 'node-exporter-hpc2'
+    static_configs:
+      - targets:
+          - 'rocky3.example.com:9100'
+          - 'rocky4.example.com:9100'
+        labels:
+          cluster: 'hpc2'
+          role: 'compute'
+          os: 'rocky-linux'
+
+  # GPU Nodes - NVIDIA DCGM Exporter
+  - job_name: 'nvidia-dcgm'
+    static_configs:
+      - targets:
+          - 'gpu1.example.com:9400'
+        labels:
+          role: 'gpu'
+          hardware: 'nvidia'
+
+  # SLURM Job Scheduler
+  - job_name: 'slurm-exporter'
+    static_configs:
+      - targets:
+          - 'scheduler.example.com:9091'
+        labels:
+          role: 'scheduler'
+          component: 'slurm'
+
+  # WEKA Distributed Filesystem
+  - job_name: 'weka-exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'weka1.example.com:9101'
+        labels:
+          role: 'storage'
+          filesystem: 'weka'
+
+  # MooseFS Distributed Filesystem
+  - job_name: 'moosefs-exporter'
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'moosefs-master.example.com:9105'
+        labels:
+          role: 'storage'
+          filesystem: 'moosefs'
+          component: 'master'
+      - targets:
+          - 'moosefs-chunk1.example.com:9105'
+          - 'moosefs-chunk2.example.com:9105'
+        labels:
+          role: 'storage'
+          filesystem: 'moosefs'
+          component: 'chunkserver'
+
+  # Dell PowerEdge iDRAC Monitoring
+  - job_name: 'idrac-exporter'
+    scrape_interval: 60s
+    scrape_timeout: 30s
+    static_configs:
+      - targets:
+          - 'poweredge1.example.com:9610'
+        labels:
+          role: 'hardware'
+          vendor: 'dell'
+          model: 'poweredge'
+          generation: '16G'
+      - targets:
+          - 'poweredge2.example.com:9610'
+        labels:
+          role: 'hardware'
+          vendor: 'dell'
+          model: 'poweredge'
+          generation: '17G'
+
+  # cAdvisor - Container Metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          component: 'cadvisor'
+
+  # Pushgateway - Batch Job Metrics
+  - job_name: 'pushgateway'
+    honor_labels: true
+    static_configs:
+      - targets: ['pushgateway:9091']
+        labels:
+          component: 'pushgateway'
+
+  # Blackbox Exporter - Endpoint Probing
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://grafana.example.com
+          - http://prometheus.example.com
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # SNMP Exporter - Network Equipment and iDRAC (if using SNMP)
+  - job_name: 'snmp'
+    scrape_interval: 60s
+    scrape_timeout: 30s
+    static_configs:
+      - targets:
+          - switch1.example.com
+          - switch2.example.com
+        labels:
+          role: 'network'
+          device_type: 'switch'
+    metrics_path: /snmp
+    params:
+      module: [default]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: snmp-exporter:9116

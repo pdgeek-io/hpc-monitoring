@@ -1,0 +1,174 @@
+# Prometheus Alert Rules for HPC Infrastructure
+
+groups:
+  - name: hpc_infrastructure
+    interval: 30s
+    rules:
+      # Node Down Alerts
+      - alert: NodeDown
+        expr: up{job=~"node-exporter.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Node {{ $labels.instance }} is down"
+          description: "{{ $labels.instance }} has been down for more than 2 minutes."
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+          component: compute
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 90% on {{ $labels.instance }} for more than 5 minutes."
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          component: compute
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 90% on {{ $labels.instance }}."
+
+      # Disk Space Low
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.lxcfs"} / node_filesystem_size_bytes) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          component: storage
+        annotations:
+          summary: "Disk space low on {{ $labels.instance }}"
+          description: "Disk {{ $labels.mountpoint }} on {{ $labels.instance }} has less than 10% free space."
+
+  - name: hpc_slurm
+    interval: 30s
+    rules:
+      # SLURM Exporter Down
+      - alert: SLURMExporterDown
+        expr: up{job="slurm-exporter"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: slurm
+        annotations:
+          summary: "SLURM exporter is down"
+          description: "SLURM exporter on {{ $labels.instance }} has been down for more than 2 minutes."
+
+      # High Job Queue
+      - alert: HighJobQueue
+        expr: slurm_queue_jobs_pending > 100
+        for: 15m
+        labels:
+          severity: warning
+          component: slurm
+        annotations:
+          summary: "High number of pending jobs"
+          description: "{{ $value }} jobs are pending in SLURM queue for more than 15 minutes."
+
+  - name: hpc_storage
+    interval: 60s
+    rules:
+      # WEKA Storage Low
+      - alert: WEKAStorageLow
+        expr: (weka_filesystem_available_bytes / weka_filesystem_capacity_bytes) * 100 < 15
+        for: 10m
+        labels:
+          severity: warning
+          component: storage
+          filesystem: weka
+        annotations:
+          summary: "WEKA filesystem space low"
+          description: "WEKA filesystem has less than 15% free space."
+
+      # MooseFS Storage Low
+      - alert: MooseFSStorageLow
+        expr: (moosefs_available_space_bytes / moosefs_total_space_bytes) * 100 < 15
+        for: 10m
+        labels:
+          severity: warning
+          component: storage
+          filesystem: moosefs
+        annotations:
+          summary: "MooseFS filesystem space low"
+          description: "MooseFS has less than 15% free space."
+
+      # MooseFS Chunk Server Down
+      - alert: MooseFSChunkServerDown
+        expr: moosefs_chunkservers_online < moosefs_chunkservers_total
+        for: 5m
+        labels:
+          severity: critical
+          component: storage
+          filesystem: moosefs
+        annotations:
+          summary: "MooseFS chunk server(s) offline"
+          description: "One or more MooseFS chunk servers are offline."
+
+  - name: hpc_hardware
+    interval: 60s
+    rules:
+      # PowerEdge High Temperature
+      - alert: PowerEdgeHighTemperature
+        expr: redfish_thermal_temperatures_reading_celsius > 80
+        for: 5m
+        labels:
+          severity: critical
+          component: hardware
+        annotations:
+          summary: "High temperature on {{ $labels.instance }}"
+          description: "Temperature sensor {{ $labels.sensor_name }} is reading {{ $value }}°C."
+
+      # PowerEdge Fan Failure
+      - alert: PowerEdgeFanFailure
+        expr: redfish_thermal_fans_status != 1
+        for: 2m
+        labels:
+          severity: critical
+          component: hardware
+        annotations:
+          summary: "Fan failure on {{ $labels.instance }}"
+          description: "Fan {{ $labels.fan_name }} has failed on {{ $labels.instance }}."
+
+      # PowerEdge PSU Failure
+      - alert: PowerEdgePSUFailure
+        expr: redfish_power_powersupply_status != 1
+        for: 2m
+        labels:
+          severity: critical
+          component: hardware
+        annotations:
+          summary: "PSU failure on {{ $labels.instance }}"
+          description: "Power supply {{ $labels.powersupply_id }} has failed on {{ $labels.instance }}."
+
+  - name: monitoring_stack
+    interval: 30s
+    rules:
+      # Prometheus High Storage Usage
+      - alert: PrometheusHighStorageUsage
+        expr: prometheus_tsdb_storage_blocks_bytes / prometheus_tsdb_storage_size_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: prometheus
+        annotations:
+          summary: "Prometheus storage usage high"
+          description: "Prometheus storage is {{ $value | humanizePercentage }} full."
+
+      # Loki Down
+      - alert: LokiDown
+        expr: up{job="loki"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: loki
+        annotations:
+          summary: "Loki is down"
+          description: "Loki has been down for more than 2 minutes."

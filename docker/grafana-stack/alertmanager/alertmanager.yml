@@ -1,0 +1,83 @@
+# Alertmanager Configuration for HPC Infrastructure
+
+global:
+  resolve_timeout: 5m
+  # SMTP configuration for email alerts (customize as needed)
+  # smtp_smarthost: 'smtp.example.com:587'
+  # smtp_from: 'alertmanager@example.com'
+  # smtp_auth_username: 'alertmanager'
+  # smtp_auth_password: 'password'
+
+# Templates for notifications
+templates:
+  - '/etc/alertmanager/*.tmpl'
+
+# Route configuration
+route:
+  receiver: 'default'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+
+  routes:
+    # Critical alerts go to multiple channels
+    - match:
+        severity: critical
+      receiver: 'critical'
+      continue: true
+
+    # Hardware alerts
+    - match:
+        component: hardware
+      receiver: 'hardware-team'
+
+    # Storage alerts
+    - match:
+        component: storage
+      receiver: 'storage-team'
+
+    # SLURM alerts
+    - match:
+        component: slurm
+      receiver: 'scheduler-team'
+
+# Inhibition rules - suppress certain alerts when others are firing
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'instance']
+
+# Receiver configurations
+receivers:
+  - name: 'default'
+    # webhook_configs:
+    #   - url: 'http://example.com/webhook'
+
+  - name: 'critical'
+    # Email configuration example
+    # email_configs:
+    #   - to: 'oncall@example.com'
+    #     headers:
+    #       Subject: '[CRITICAL] HPC Alert: {{ .GroupLabels.alertname }}'
+
+    # Slack configuration example
+    # slack_configs:
+    #   - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+    #     channel: '#hpc-critical-alerts'
+    #     title: 'Critical HPC Alert'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+  - name: 'hardware-team'
+    # webhook_configs:
+    #   - url: 'http://example.com/hardware-alerts'
+
+  - name: 'storage-team'
+    # webhook_configs:
+    #   - url: 'http://example.com/storage-alerts'
+
+  - name: 'scheduler-team'
+    # webhook_configs:
+    #   - url: 'http://example.com/scheduler-alerts'

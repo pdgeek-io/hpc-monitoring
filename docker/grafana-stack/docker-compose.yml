@@ -1,7 +1,7 @@
 version: '3.8'
 
-# HPC Monitoring - Full Grafana Community Edition Stack
-# Includes: Grafana, Prometheus, Loki, Tempo, Alertmanager, and all exporters
+# HPC Monitoring - Full Grafana Community Edition Stack (Latest Versions)
+# All services upgraded to latest stable releases
 
 networks:
   monitoring:
@@ -15,19 +15,22 @@ volumes:
   alertmanager_data:
 
 services:
-  # Grafana - Visualization and Dashboards
+  # Grafana - Latest with enterprise features
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.3.0
     container_name: hpc-grafana
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://localhost:3000
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-clock-panel
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-clock-panel,grafana-worldmap-panel
+      - GF_FEATURE_TOGGLES_ENABLE=tempoSearch,tempoBackendSearch,correlations
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_LOG_LEVEL=info
     volumes:
       - grafana_data:/var/lib/grafana
       - ./provisioning/datasources:/etc/grafana/provisioning/datasources
@@ -39,19 +42,30 @@ services:
       - prometheus
       - loki
       - tempo
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-  # Prometheus - Metrics Collection and Storage
+  # Prometheus - Latest LTS with enhanced features
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.54.1
     container_name: hpc-prometheus
     restart: unless-stopped
+    user: "0:0"
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
-      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.time=90d'
+      - '--storage.tsdb.retention.size=50GB'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--enable-feature=exemplar-storage'
+      - '--enable-feature=native-histograms'
     ports:
       - "9090:9090"
     volumes:
@@ -62,10 +76,15 @@ services:
       - monitoring
     depends_on:
       - alertmanager
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Loki - Log Aggregation
+  # Loki - Latest with improved query performance
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.2.0
     container_name: hpc-loki
     restart: unless-stopped
     ports:
@@ -76,24 +95,30 @@ services:
       - loki_data:/loki
     networks:
       - monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3100/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Promtail - Log Shipper for Loki
+  # Promtail - Latest log shipper
   promtail:
-    image: grafana/promtail:latest
+    image: grafana/promtail:3.2.0
     container_name: hpc-promtail
     restart: unless-stopped
     volumes:
       - ./loki/promtail-config.yml:/etc/promtail/promtail-config.yml
       - /var/log:/var/log:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     command: -config.file=/etc/promtail/promtail-config.yml
     networks:
       - monitoring
     depends_on:
       - loki
 
-  # Tempo - Distributed Tracing
+  # Tempo - Latest with improved tracing
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:2.6.0
     container_name: hpc-tempo
     restart: unless-stopped
     command: -config.file=/etc/tempo/tempo.yml
@@ -101,15 +126,22 @@ services:
       - "3200:3200"   # Tempo HTTP
       - "4317:4317"   # OTLP gRPC
       - "4318:4318"   # OTLP HTTP
+      - "9411:9411"   # Zipkin
+      - "14268:14268" # Jaeger ingest
     volumes:
       - ./tempo/tempo.yml:/etc/tempo/tempo.yml
       - tempo_data:/var/tempo
     networks:
       - monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3200/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Alertmanager - Alert Management and Routing
+  # Alertmanager - Latest with improved routing
   alertmanager:
-    image: prom/alertmanager:latest
+    image: prom/alertmanager:v0.27.0
     container_name: hpc-alertmanager
     restart: unless-stopped
     ports:
@@ -120,30 +152,48 @@ services:
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+      - '--cluster.advertise-address=0.0.0.0:9093'
     networks:
       - monitoring
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9093/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # Node Exporter - Host Metrics (runs on monitoring server itself)
+  # Node Exporter - Latest with all collectors
   node-exporter:
-    image: prom/node-exporter:latest
+    image: prom/node-exporter:v1.8.2
     container_name: hpc-node-exporter
     restart: unless-stopped
     ports:
       - "9100:9100"
     command:
       - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.netclass.ignored-devices=^(veth.*|docker.*|br-.*|lo)$$'
+      - '--collector.netdev.device-exclude=^(veth.*|docker.*|br-.*|lo)$$'
       - '--collector.textfile.directory=/var/lib/node_exporter/textfile_collector'
+      - '--collector.systemd'
+      - '--collector.processes'
+      - '--collector.cpu.info'
+      - '--no-collector.ipvs'
     volumes:
       - /:/host:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
       - /var/lib/node_exporter/textfile_collector:/var/lib/node_exporter/textfile_collector:ro
     networks:
       - monitoring
     pid: host
+    privileged: true
 
-  # cAdvisor - Container Metrics
+  # cAdvisor - Latest container metrics
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
     container_name: hpc-cadvisor
     restart: unless-stopped
     ports:
@@ -159,20 +209,29 @@ services:
     privileged: true
     devices:
       - /dev/kmsg
+    command:
+      - '--housekeeping_interval=30s'
+      - '--docker_only=false'
+      - '--disable_metrics=percpu,sched,tcp,udp,disk,diskIO,hugetlb,referenced_memory,cpu_topology,resctrl'
 
-  # Pushgateway - For Batch Job Metrics
+  # Pushgateway - Latest for batch jobs
   pushgateway:
-    image: prom/pushgateway:latest
+    image: prom/pushgateway:v1.9.0
     container_name: hpc-pushgateway
     restart: unless-stopped
     ports:
       - "9091:9091"
+    command:
+      - '--persistence.file=/data/pushgateway.data'
+      - '--persistence.interval=5m'
+    volumes:
+      - ./pushgateway-data:/data
     networks:
       - monitoring
 
-  # Blackbox Exporter - Endpoint Monitoring
+  # Blackbox Exporter - Latest endpoint monitoring
   blackbox-exporter:
-    image: prom/blackbox-exporter:latest
+    image: prom/blackbox-exporter:v0.25.0
     container_name: hpc-blackbox-exporter
     restart: unless-stopped
     ports:
@@ -181,12 +240,13 @@ services:
       - ./prometheus/blackbox.yml:/etc/blackbox_exporter/config.yml
     command:
       - '--config.file=/etc/blackbox_exporter/config.yml'
+      - '--history.limit=100'
     networks:
       - monitoring
 
-  # SNMP Exporter - For Network Equipment and iDRAC
+  # SNMP Exporter - Latest for network devices
   snmp-exporter:
-    image: prom/snmp-exporter:latest
+    image: prom/snmp-exporter:v0.26.0
     container_name: hpc-snmp-exporter
     restart: unless-stopped
     ports:
@@ -195,5 +255,47 @@ services:
       - ./prometheus/snmp.yml:/etc/snmp_exporter/snmp.yml
     command:
       - '--config.file=/etc/snmp_exporter/snmp.yml'
+    networks:
+      - monitoring
+
+  # Process Exporter - NEW: Monitor specific processes
+  process-exporter:
+    image: ncabatoff/process-exporter:0.8.3
+    container_name: hpc-process-exporter
+    restart: unless-stopped
+    ports:
+      - "9256:9256"
+    volumes:
+      - /proc:/host/proc:ro
+      - ./prometheus/process-exporter.yml:/config/process-exporter.yml
+    command:
+      - '--procfs=/host/proc'
+      - '--config.path=/config/process-exporter.yml'
+    networks:
+      - monitoring
+    privileged: true
+    pid: host
+
+  # Statsd Exporter - NEW: For statsd metrics
+  statsd-exporter:
+    image: prom/statsd-exporter:v0.27.1
+    container_name: hpc-statsd-exporter
+    restart: unless-stopped
+    ports:
+      - "9102:9102"   # Metrics
+      - "9125:9125/udp" # StatsD
+    networks:
+      - monitoring
+
+  # Grafana Image Renderer - NEW: For PNG exports
+  grafana-image-renderer:
+    image: grafana/grafana-image-renderer:3.11.3
+    container_name: hpc-grafana-renderer
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      - ENABLE_METRICS=true
+      - HTTP_PORT=8081
     networks:
       - monitoring

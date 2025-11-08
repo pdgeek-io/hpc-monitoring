@@ -1,0 +1,52 @@
+# Process Exporter Configuration
+# Monitors specific processes for HPC workloads
+
+process_names:
+  # SLURM processes
+  - name: "{{.Comm}}"
+    cmdline:
+      - 'slurmd'
+      - 'slurmctld'
+      - 'slurmdbd'
+
+  # MPI processes
+  - name: "{{.Comm}}"
+    cmdline:
+      - 'mpirun'
+      - 'mpiexec'
+
+  # Common HPC applications
+  - name: "{{.Comm}}"
+    cmdline:
+      - 'python.*'
+      - 'julia'
+      - 'R'
+
+  # Scientific computing
+  - name: "{{.Comm}}"
+    cmdline:
+      - 'lammps'
+      - 'gromacs'
+      - 'namd'
+      - 'quantum.*'
+
+  # Container runtimes
+  - name: "{{.Comm}}"
+    cmdline:
+      - 'dockerd'
+      - 'containerd'
+      - 'singularity'
+
+  # Storage daemons
+  - name: "{{.Comm}}"
+    cmdline:
+      - 'mfsmount'
+      - 'mfsmaster'
+      - 'mfschunkserver'
+
+  # Database processes
+  - name: "{{.Comm}}"
+    cmdline:
+      - 'postgres.*'
+      - 'mysql.*'
+      - 'redis.*'

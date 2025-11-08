@@ -19,7 +19,8 @@ ExecStart={{ node_exporter_install_dir }}/node_exporter \
   --collector.meminfo \
   --collector.netdev \
   --collector.netstat \
-  --collector.vmstat
+  --collector.vmstat \
+  --collector.textfile.directory=/var/lib/node_exporter/textfile_collector
 
 SyslogIdentifier=node_exporter
 Restart=always

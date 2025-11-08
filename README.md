@@ -148,3 +148,179 @@ The Node Exporter role has been optimized for Rocky Linux 8 and 9:
 - **Full Compatibility**: Tested and verified on Rocky Linux 8.x and 9.x
 
 The existing `node_exporter` role works seamlessly on Rocky Linux compute nodes without any additional configuration.
+
+## HPC Full-Stack Unified Monitoring
+
+The repository includes a comprehensive unified monitoring solution that provides complete visibility into your HPC infrastructure.
+
+### Integrated Components
+
+- **Rocky Linux Compute Nodes**: CPU, memory, I/O, network, and extended CPU features
+- **SLURM Job Scheduler**: Job queues, operations, and resource utilization
+- **WEKA Distributed Filesystem**: Storage capacity, performance, and I/O operations
+- **MooseFS Distributed Filesystem**: Master/chunk servers, clients, space utilization
+- **Dell PowerEdge Hardware**: Health, power, thermal, memory, CPU, RAID via iDRAC
+- **NVIDIA GPUs**: GPU performance metrics via DCGM
+
+### Quick Start - Full-Stack Deployment
+
+Deploy the entire monitoring stack with a single command:
+
+```bash
+ansible-playbook -i ansible/inventory ansible/playbooks/hpc_fullstack_monitoring.yml
+```
+
+### Selective Deployment with Tags
+
+Deploy only specific components:
+
+```bash
+# Deploy only compute node and storage monitoring
+ansible-playbook -i ansible/inventory ansible/playbooks/hpc_fullstack_monitoring.yml --tags compute,storage
+
+# Deploy only job scheduler monitoring
+ansible-playbook -i ansible/inventory ansible/playbooks/hpc_fullstack_monitoring.yml --tags slurm
+
+# Deploy only PowerEdge hardware monitoring
+ansible-playbook -i ansible/inventory ansible/playbooks/hpc_fullstack_monitoring.yml --tags poweredge
+```
+
+### Available Tags
+
+- `compute`: Rocky Linux compute nodes
+- `gpu`: NVIDIA GPU nodes
+- `slurm`, `scheduler`, `jobs`: SLURM job scheduler
+- `weka`, `moosefs`, `storage`, `filesystem`: Storage systems
+- `poweredge`, `idrac`, `hardware`, `dell`: PowerEdge servers
+- `baseline`: Essential compute monitoring
+
+### Unified Dashboard
+
+Import `grafana_dashboards/hpc_unified_fullstack_dashboard.json` for complete HPC infrastructure visualization including:
+
+- Infrastructure health overview
+- Compute node performance (CPU, memory, network)
+- SLURM job queue status and trends
+- WEKA and MooseFS storage metrics
+- Cross-component correlation
+
+### Monitoring Endpoints
+
+After deployment, metrics are available at:
+
+| Component | Port | Endpoint |
+|-----------|------|----------|
+| Node Exporter (Rocky Linux) | 9100 | http://host:9100/metrics |
+| NVIDIA DCGM | 9400 | http://host:9400/metrics |
+| SLURM Exporter | 9091 | http://host:9091/metrics |
+| WEKA Exporter | 9101 | http://host:9101/metrics |
+| MooseFS Exporter | 9105 | http://host:9105/metrics |
+| iDRAC Exporter | 9610 | http://host:9610/metrics |
+
+## MooseFS Monitoring Setup
+
+### Prerequisites
+
+MooseFS should be installed and running on your master and chunk servers.
+
+### Configuration
+
+1. **Add MooseFS Servers to Inventory:**
+   ```ini
+   [storage_moosefs]
+   moosefs-master.example.com
+   moosefs-chunk1.example.com
+   moosefs-chunk2.example.com
+   ```
+
+2. **Configure MooseFS Master Connection:**
+   Edit `ansible/roles/moosefs_exporter/defaults/main.yml`:
+   ```yaml
+   moosefs_master_host: "moosefs-master.example.com"
+   moosefs_master_port: 9421
+   ```
+
+3. **Deploy:**
+   ```bash
+   ansible-playbook -i ansible/inventory ansible/playbooks/hpc_fullstack_monitoring.yml --tags moosefs
+   ```
+
+### Metrics Collected
+
+- Total/available/used/trash filesystem space
+- Number of chunk servers (total and online)
+- Total chunks
+- Files and directories count
+- Read/write operations
+- Connected clients
+
+## Hardware Generational Comparison
+
+Track and compare performance across different hardware generations (e.g., Dell PowerEdge 16G vs 17G):
+
+### Setup
+
+1. **Tag Servers by Generation in Inventory:**
+   ```ini
+   [poweredge_servers]
+   poweredge-16g-01.example.com  # gen=16G
+   poweredge-17g-01.example.com  # gen=17G
+   ```
+
+2. **Enable CPU Features Monitoring:**
+   The Node Exporter role automatically deploys a CPU features collector that tracks:
+   - AVX, AVX2, AVX-512 (Foundation, DQ, BW, VL, VNNI)
+   - AES-NI encryption instructions
+   - SSE4.2
+   - FMA (Fused Multiply-Add)
+   - BMI1/BMI2 (Bit Manipulation Instructions)
+   - Hardware virtualization support
+
+3. **Query in Grafana:**
+   Use `node_cpu_feature` metrics to compare feature availability:
+   ```promql
+   node_cpu_feature{feature="avx512_vnni"}
+   ```
+
+### Research Use Cases
+
+- **Performance Analysis**: Compare job execution times across generations
+- **Feature Adoption**: Track which nodes support newer instruction sets
+- **Upgrade Planning**: Identify which workloads benefit from newer hardware
+- **Power Efficiency**: Compare power consumption for same workload across generations
+
+## Job Operations Monitoring
+
+SLURM integration provides comprehensive job and operations monitoring:
+
+### Metrics Available
+
+- Pending jobs by partition
+- Running jobs by partition
+- Completed and failed jobs
+- Queue wait times
+- Node allocation and utilization
+- Resource consumption per job
+
+### Dashboard Usage
+
+The unified dashboard shows:
+- Real-time job queue status table
+- Job trends over time (running vs pending)
+- Cross-correlation with compute node resource usage
+- Storage I/O patterns during job execution
+
+Query example for jobs research:
+```promql
+# Average queue wait time
+rate(slurm_queue_jobs_pending[5m])
+
+# Job completion rate
+rate(slurm_jobs_completed_total[5m])
+```
+
+This enables researchers to:
+- Understand scheduler behavior
+- Optimize job submission strategies
+- Identify bottlenecks in the HPC pipeline
+- Correlate job patterns with resource utilization

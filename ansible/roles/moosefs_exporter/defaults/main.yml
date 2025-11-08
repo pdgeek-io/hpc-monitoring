@@ -1,0 +1,18 @@
+# MooseFS Prometheus Exporter settings
+# Monitors MooseFS distributed filesystem: master server, chunk servers, clients
+
+moosefs_exporter_version: "1.1.0"
+moosefs_exporter_download_url: "https://github.com/kgkannan/moosefs_exporter/releases/download/v{{ moosefs_exporter_version }}/moosefs_exporter-{{ moosefs_exporter_version }}.linux-amd64.tar.gz"
+moosefs_exporter_install_dir: "/usr/local/bin"
+moosefs_exporter_user: "moosefs_exporter"
+moosefs_exporter_port: 9105
+
+# MooseFS connection settings
+moosefs_master_host: "localhost"
+moosefs_master_port: 9421
+
+# Monitoring configuration
+moosefs_scrape_interval: 15s
+moosefs_monitor_master: true
+moosefs_monitor_chunkservers: true
+moosefs_monitor_clients: true

@@ -1,0 +1,98 @@
+---
+# HPC Full-Stack Monitoring Deployment
+# This playbook deploys comprehensive monitoring for the complete HPC infrastructure:
+# - Rocky Linux compute nodes
+# - SLURM job scheduler
+# - WEKA distributed filesystem
+# - MooseFS distributed filesystem
+# - Dell PowerEdge hardware (via iDRAC)
+# - GPU nodes (NVIDIA DCGM)
+
+- name: Configure Rocky Linux Compute Nodes with Node Exporter
+  hosts: hpc1:hpc2
+  become: yes
+  roles:
+    - node_exporter
+  tags:
+    - compute
+    - rocky-linux
+    - baseline
+
+- name: Configure GPU Nodes with Nvidia DCGM Exporter
+  hosts: gpu_nodes
+  become: yes
+  roles:
+    - nvidia_dcgm_exporter
+  tags:
+    - gpu
+    - compute
+
+- name: Configure SLURM Job Scheduler Monitoring
+  hosts: job_scheduler
+  become: yes
+  roles:
+    - slurm_exporter
+  tags:
+    - slurm
+    - scheduler
+    - jobs
+
+- name: Configure WEKA Filesystem Monitoring
+  hosts: storage_weka
+  become: yes
+  roles:
+    - wekafs_exporter
+  tags:
+    - weka
+    - storage
+    - filesystem
+
+- name: Configure MooseFS Distributed Filesystem Monitoring
+  hosts: storage_moosefs
+  become: yes
+  roles:
+    - moosefs_exporter
+  tags:
+    - moosefs
+    - storage
+    - filesystem
+
+- name: Configure Dell PowerEdge iDRAC Hardware Monitoring
+  hosts: poweredge_servers
+  become: yes
+  roles:
+    - idrac_exporter
+  tags:
+    - poweredge
+    - idrac
+    - hardware
+    - dell
+
+- name: Display Deployment Summary
+  hosts: localhost
+  gather_facts: no
+  tasks:
+    - name: Print monitoring endpoints
+      debug:
+        msg: |
+          ==========================================
+          HPC Full-Stack Monitoring Deployed!
+          ==========================================
+
+          Monitoring Endpoints:
+          - Node Exporter (Rocky Linux): Port 9100
+          - NVIDIA DCGM Exporter: Port 9400
+          - SLURM Exporter: Port 9091
+          - WEKA Exporter: Port 9101
+          - MooseFS Exporter: Port 9105
+          - iDRAC Exporter (PowerEdge): Port 9610
+
+          Next Steps:
+          1. Configure Prometheus scrape targets in prometheus.yml
+          2. Import Grafana dashboards from grafana_dashboards/
+          3. Verify metrics: curl http://<host>:<port>/metrics
+
+          Unified Dashboard: hpc_unified_fullstack_dashboard.json
+          ==========================================
+  tags:
+    - summary

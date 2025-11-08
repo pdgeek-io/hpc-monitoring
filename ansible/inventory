@@ -21,5 +21,12 @@ gpu1.example.com
 [poweredge_servers]
 # Dell PowerEdge servers for hardware monitoring via iDRAC
 # The exporter will monitor: health, CPU, memory, power, cooling, fans, PSU, RAID
-poweredge1.example.com
-poweredge2.example.com
+# Tag servers with generation for comparison (e.g., gen=16G or gen=17G)
+poweredge1.example.com  # gen=16G
+poweredge2.example.com  # gen=17G
+
+[storage_moosefs]
+# MooseFS distributed filesystem nodes
+moosefs-master.example.com
+moosefs-chunk1.example.com
+moosefs-chunk2.example.com

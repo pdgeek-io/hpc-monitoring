@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""
+MooseFS Prometheus Exporter
+Monitors MooseFS distributed filesystem metrics
+"""
+
+import argparse
+import time
+import subprocess
+import re
+from prometheus_client import start_http_server, Gauge, Counter, Info
+
+# MooseFS Master Server Metrics
+mfs_master_status = Info('moosefs_master', 'MooseFS Master Server Status')
+mfs_total_space = Gauge('moosefs_total_space_bytes', 'Total filesystem space in bytes')
+mfs_available_space = Gauge('moosefs_available_space_bytes', 'Available filesystem space in bytes')
+mfs_used_space = Gauge('moosefs_used_space_bytes', 'Used filesystem space in bytes')
+mfs_trash_space = Gauge('moosefs_trash_space_bytes', 'Trash space in bytes')
+mfs_reserved_space = Gauge('moosefs_reserved_space_bytes', 'Reserved space in bytes')
+
+# MooseFS Chunk Server Metrics
+mfs_chunkservers_total = Gauge('moosefs_chunkservers_total', 'Total number of chunk servers')
+mfs_chunkservers_online = Gauge('moosefs_chunkservers_online', 'Number of online chunk servers')
+mfs_chunks_total = Gauge('moosefs_chunks_total', 'Total number of chunks')
+
+# MooseFS Files and Directories
+mfs_files_total = Gauge('moosefs_files_total', 'Total number of files')
+mfs_directories_total = Gauge('moosefs_directories_total', 'Total number of directories')
+
+# MooseFS Operations
+mfs_read_operations = Counter('moosefs_read_operations_total', 'Total read operations')
+mfs_write_operations = Counter('moosefs_write_operations_total', 'Total write operations')
+
+# MooseFS Clients
+mfs_clients_connected = Gauge('moosefs_clients_connected', 'Number of connected clients')
+
+
+def parse_mfsmaster_info():
+    """Parse mfscli or mfsmaster CGI data"""
+    try:
+        # Try using mfscli if available
+        result = subprocess.run(['mfscli', '-SIN'], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            return result.stdout
+
+        # Fallback to CGI monitoring if available
+        result = subprocess.run(
+            ['curl', '-s', 'http://{{ moosefs_master_host }}:{{ moosefs_master_port }}/'],
+            capture_output=True, text=True, timeout=5
+        )
+        return result.stdout
+    except Exception as e:
+        print(f"Error fetching MooseFS master info: {e}")
+        return ""
+
+
+def parse_mfshdd_info():
+    """Parse HDD usage information from chunk servers"""
+    try:
+        result = subprocess.run(['mfscli', '-SCS'], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            return result.stdout
+    except Exception:
+        pass
+    return ""
+
+
+def collect_metrics():
+    """Collect all MooseFS metrics"""
+    master_info = parse_mfsmaster_info()
+
+    if master_info:
+        # Parse space usage (example parsing - adjust based on actual output)
+        space_match = re.search(r'Total space:\s+(\d+)', master_info)
+        if space_match:
+            mfs_total_space.set(int(space_match.group(1)) * 1024 * 1024)  # Convert to bytes
+
+        avail_match = re.search(r'Available space:\s+(\d+)', master_info)
+        if avail_match:
+            mfs_available_space.set(int(avail_match.group(1)) * 1024 * 1024)
+
+        used_match = re.search(r'Used space:\s+(\d+)', master_info)
+        if used_match:
+            mfs_used_space.set(int(used_match.group(1)) * 1024 * 1024)
+
+        # Parse chunk servers
+        cs_online_match = re.search(r'Chunk servers:\s+(\d+)', master_info)
+        if cs_online_match:
+            mfs_chunkservers_online.set(int(cs_online_match.group(1)))
+
+        # Parse file/directory counts
+        files_match = re.search(r'Files:\s+(\d+)', master_info)
+        if files_match:
+            mfs_files_total.set(int(files_match.group(1)))
+
+        dirs_match = re.search(r'Directories:\s+(\d+)', master_info)
+        if dirs_match:
+            mfs_directories_total.set(int(dirs_match.group(1)))
+
+        mfs_master_status.info({'status': 'online', 'version': 'MooseFS'})
+    else:
+        mfs_master_status.info({'status': 'offline', 'version': 'unknown'})
+
+
+def main():
+    parser = argparse.ArgumentParser(description='MooseFS Prometheus Exporter')
+    parser.add_argument('--port', type=int, default={{ moosefs_exporter_port }},
+                        help='Port to expose metrics on')
+    parser.add_argument('--master-host', default='{{ moosefs_master_host }}',
+                        help='MooseFS master host')
+    parser.add_argument('--master-port', default='{{ moosefs_master_port }}',
+                        help='MooseFS master port')
+
+    args = parser.parse_args()
+
+    # Start Prometheus metrics server
+    start_http_server(args.port)
+    print(f"MooseFS Exporter running on port {args.port}")
+
+    # Collect metrics periodically
+    while True:
+        try:
+            collect_metrics()
+        except Exception as e:
+            print(f"Error collecting metrics: {e}")
+
+        time.sleep({{ moosefs_scrape_interval.rstrip('s') }})
+
+
+if __name__ == '__main__':
+    main()

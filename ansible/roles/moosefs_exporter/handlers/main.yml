@@ -1,0 +1,5 @@
+---
+- name: Restart moosefs_exporter
+  systemd:
+    name: moosefs_exporter
+    state: restarted

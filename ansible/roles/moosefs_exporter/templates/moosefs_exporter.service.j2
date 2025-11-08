@@ -1,0 +1,29 @@
+[Unit]
+Description=MooseFS Prometheus Exporter
+Documentation=https://moosefs.com
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ moosefs_exporter_user }}
+Group={{ moosefs_exporter_user }}
+WorkingDirectory={{ moosefs_exporter_install_dir }}/moosefs_exporter
+ExecStart=/usr/bin/python3 {{ moosefs_exporter_install_dir }}/moosefs_exporter/moosefs_exporter.py \
+  --port {{ moosefs_exporter_port }} \
+  --master-host {{ moosefs_master_host }} \
+  --master-port {{ moosefs_master_port }}
+
+SyslogIdentifier=moosefs_exporter
+Restart=always
+RestartSec=5s
+
+# Security hardening
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+ReadWritePaths=/tmp
+
+[Install]
+WantedBy=multi-user.target

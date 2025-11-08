@@ -40,6 +40,30 @@
 - name: Reload systemd daemon
   command: systemctl daemon-reload
 
+- name: Create textfile collector directory
+  file:
+    path: "/var/lib/node_exporter/textfile_collector"
+    state: directory
+    mode: '0755'
+    owner: "{{ node_exporter_user }}"
+    group: "{{ node_exporter_user }}"
+
+- name: Deploy CPU features collector script
+  template:
+    src: "cpu_features_textfile.sh.j2"
+    dest: "/usr/local/bin/cpu_features_collector.sh"
+    mode: '0755'
+
+- name: Create cron job for CPU features collection
+  cron:
+    name: "Collect CPU features for Node Exporter"
+    minute: "*/5"
+    job: "/usr/local/bin/cpu_features_collector.sh"
+    user: root
+
+- name: Run CPU features collector immediately
+  command: /usr/local/bin/cpu_features_collector.sh
+
 - name: Enable and start node_exporter service
   systemd:
     name: node_exporter

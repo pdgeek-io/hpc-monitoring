@@ -1,0 +1,120 @@
+#!/bin/bash
+# CPU Extended Features Textfile Collector for Node Exporter
+# Generates Prometheus metrics for CPU features (AVX, AVX2, AVX-512, etc.)
+# This enables hardware generational comparison (e.g., PowerEdge 16G vs 17G)
+
+TEXTFILE_DIR="/var/lib/node_exporter/textfile_collector"
+OUTPUT_FILE="${TEXTFILE_DIR}/cpu_features.prom"
+
+mkdir -p "${TEXTFILE_DIR}"
+
+# Generate metrics
+{
+    echo "# HELP node_cpu_feature CPU feature availability (1 = available, 0 = not available)"
+    echo "# TYPE node_cpu_feature gauge"
+
+    # Check CPU flags from /proc/cpuinfo
+    CPU_FLAGS=$(grep -m1 "^flags" /proc/cpuinfo | cut -d: -f2)
+
+    # AVX Support
+    if echo "$CPU_FLAGS" | grep -q " avx "; then
+        echo 'node_cpu_feature{feature="avx"} 1'
+    else
+        echo 'node_cpu_feature{feature="avx"} 0'
+    fi
+
+    # AVX2 Support
+    if echo "$CPU_FLAGS" | grep -q " avx2 "; then
+        echo 'node_cpu_feature{feature="avx2"} 1'
+    else
+        echo 'node_cpu_feature{feature="avx2"} 0'
+    fi
+
+    # AVX-512 Foundation
+    if echo "$CPU_FLAGS" | grep -q " avx512f "; then
+        echo 'node_cpu_feature{feature="avx512f"} 1'
+    else
+        echo 'node_cpu_feature{feature="avx512f"} 0'
+    fi
+
+    # AVX-512 DQ (Double and Quadword)
+    if echo "$CPU_FLAGS" | grep -q " avx512dq "; then
+        echo 'node_cpu_feature{feature="avx512dq"} 1'
+    else
+        echo 'node_cpu_feature{feature="avx512dq"} 0'
+    fi
+
+    # AVX-512 BW (Byte and Word)
+    if echo "$CPU_FLAGS" | grep -q " avx512bw "; then
+        echo 'node_cpu_feature{feature="avx512bw"} 1'
+    else
+        echo 'node_cpu_feature{feature="avx512bw"} 0'
+    fi
+
+    # AVX-512 VL (Vector Length Extensions)
+    if echo "$CPU_FLAGS" | grep -q " avx512vl "; then
+        echo 'node_cpu_feature{feature="avx512vl"} 1'
+    else
+        echo 'node_cpu_feature{feature="avx512vl"} 0'
+    fi
+
+    # AVX-512 VNNI (Vector Neural Network Instructions) - Gen 17+ feature
+    if echo "$CPU_FLAGS" | grep -q " avx512_vnni "; then
+        echo 'node_cpu_feature{feature="avx512_vnni"} 1'
+    else
+        echo 'node_cpu_feature{feature="avx512_vnni"} 0'
+    fi
+
+    # AES-NI
+    if echo "$CPU_FLAGS" | grep -q " aes "; then
+        echo 'node_cpu_feature{feature="aes_ni"} 1'
+    else
+        echo 'node_cpu_feature{feature="aes_ni"} 0'
+    fi
+
+    # SSE4.2
+    if echo "$CPU_FLAGS" | grep -q " sse4_2 "; then
+        echo 'node_cpu_feature{feature="sse4_2"} 1'
+    else
+        echo 'node_cpu_feature{feature="sse4_2"} 0'
+    fi
+
+    # Hardware Virtualization (VT-x/AMD-V)
+    if echo "$CPU_FLAGS" | grep -qE " vmx | svm "; then
+        echo 'node_cpu_feature{feature="virtualization"} 1'
+    else
+        echo 'node_cpu_feature{feature="virtualization"} 0'
+    fi
+
+    # FMA (Fused Multiply-Add)
+    if echo "$CPU_FLAGS" | grep -q " fma "; then
+        echo 'node_cpu_feature{feature="fma"} 1'
+    else
+        echo 'node_cpu_feature{feature="fma"} 0'
+    fi
+
+    # BMI1 and BMI2 (Bit Manipulation Instructions)
+    if echo "$CPU_FLAGS" | grep -q " bmi1 "; then
+        echo 'node_cpu_feature{feature="bmi1"} 1'
+    else
+        echo 'node_cpu_feature{feature="bmi1"} 0'
+    fi
+
+    if echo "$CPU_FLAGS" | grep -q " bmi2 "; then
+        echo 'node_cpu_feature{feature="bmi2"} 1'
+    else
+        echo 'node_cpu_feature{feature="bmi2"} 0'
+    fi
+
+    # CPU Model Information for Generational Tracking
+    CPU_MODEL=$(grep -m1 "^model name" /proc/cpuinfo | cut -d: -f2 | xargs)
+    CPU_FAMILY=$(grep -m1 "^cpu family" /proc/cpuinfo | cut -d: -f2 | xargs)
+    CPU_MODEL_NUM=$(grep -m1 "^model" /proc/cpuinfo | grep -v "model name" | cut -d: -f2 | xargs)
+
+    echo "# HELP node_cpu_generation_info CPU generation and model information"
+    echo "# TYPE node_cpu_generation_info gauge"
+    echo "node_cpu_generation_info{model=\"${CPU_MODEL}\",family=\"${CPU_FAMILY}\",model_num=\"${CPU_MODEL_NUM}\"} 1"
+
+} > "${OUTPUT_FILE}.$$"
+
+mv "${OUTPUT_FILE}.$$" "${OUTPUT_FILE}"

@@ -176,3 +176,84 @@ Create a read-only monitoring user in iDRAC:
 3. Set username (e.g., "monitor")
 4. Assign "Read Only" privilege level
 5. Enable user account
+
+## HPC Full-Stack Monitoring Solution
+
+### Unified Monitoring Architecture
+
+This repository now includes a comprehensive unified monitoring solution that wraps around:
+- **WEKA**: Distributed parallel filesystem
+- **MooseFS**: Distributed fault-tolerant filesystem
+- **SLURM**: HPC job scheduler and resource manager
+- **Rocky Linux**: Enterprise Linux compute nodes
+
+Use the `hpc_fullstack_monitoring.yml` playbook for complete deployment:
+```bash
+ansible-playbook -i ansible/inventory ansible/playbooks/hpc_fullstack_monitoring.yml
+```
+
+### MooseFS Monitoring
+
+The MooseFS exporter (port 9105) monitors:
+- Master server status and health
+- Total/available/used filesystem space
+- Chunk server count and status
+- Connected clients
+- Files and directories count
+- Read/write operations
+
+Configuration: `ansible/roles/moosefs_exporter/defaults/main.yml`
+
+### Generational Hardware Comparison
+
+The monitoring system supports tracking and comparing different hardware generations (e.g., Dell PowerEdge 16G vs 17G):
+
+1. Tag servers in inventory with generation metadata:
+   ```ini
+   poweredge1.example.com  # gen=16G
+   poweredge2.example.com  # gen=17G
+   ```
+
+2. Use Grafana to compare metrics across generations for:
+   - Performance differences
+   - Power efficiency improvements
+   - Thermal characteristics
+   - CPU feature availability (AVX, AVX2, AVX-512)
+
+### CPU Extended Features Monitoring
+
+Node Exporter on Rocky Linux includes CPU feature detection for:
+- AVX (Advanced Vector Extensions)
+- AVX2
+- AVX-512
+- SSE, SSE2, SSE3, SSE4
+- AES-NI
+- Hardware virtualization (VT-x, AMD-V)
+
+Access via: `node_cpu_info` metric with labels for CPU features
+
+### Job Operations Monitoring
+
+SLURM exporter provides comprehensive job monitoring:
+- Pending, running, completed, failed jobs
+- Queue wait times
+- Resource utilization per job
+- Node allocation status
+- Partition performance metrics
+
+Use the unified dashboard (`hpc_unified_fullstack_dashboard.json`) for complete visibility.
+
+### Deployment Tags
+
+The full-stack playbook supports granular deployment via tags:
+- `compute`: Rocky Linux nodes only
+- `gpu`: GPU nodes only
+- `slurm`, `scheduler`, `jobs`: SLURM monitoring
+- `weka`, `moosefs`, `storage`, `filesystem`: Storage systems
+- `poweredge`, `idrac`, `hardware`, `dell`: PowerEdge hardware
+- `baseline`: Essential compute monitoring
+
+Example:
+```bash
+ansible-playbook -i ansible/inventory ansible/playbooks/hpc_fullstack_monitoring.yml --tags storage,slurm
+```

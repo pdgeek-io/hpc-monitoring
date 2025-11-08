@@ -1,0 +1,24 @@
+# Dell iDRAC Redfish Exporter settings
+# This exporter monitors Dell PowerEdge servers via iDRAC Redfish API
+# Metrics include: CPU, memory, power, cooling, health status, RAID, fans, PSU
+
+idrac_exporter_version: "1.5.0"
+idrac_exporter_download_url: "https://github.com/jenningsloy318/redfish_exporter/releases/download/v{{ idrac_exporter_version }}/redfish_exporter-{{ idrac_exporter_version }}.linux-amd64.tar.gz"
+idrac_exporter_install_dir: "/usr/local/bin"
+idrac_exporter_user: "idrac_exporter"
+idrac_exporter_port: 9610
+idrac_exporter_config_dir: "/etc/idrac_exporter"
+
+# iDRAC connection settings - override these in inventory or playbook vars
+# Example: idrac_hosts should be a list of iDRAC IPs/hostnames with credentials
+idrac_hosts:
+  - host: "idrac1.example.com"
+    username: "monitor"
+    password: "changeme"
+  - host: "idrac2.example.com"
+    username: "monitor"
+    password: "changeme"
+
+# Monitoring configuration
+idrac_metrics_path: "/redfish/v1"
+idrac_timeout: 10s

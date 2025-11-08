@@ -1,0 +1,63 @@
+---
+- name: Ensure idrac_exporter user exists
+  user:
+    name: "{{ idrac_exporter_user }}"
+    system: yes
+    shell: /sbin/nologin
+
+- name: Create configuration directory
+  file:
+    path: "{{ idrac_exporter_config_dir }}"
+    state: directory
+    mode: '0755'
+    owner: "{{ idrac_exporter_user }}"
+    group: "{{ idrac_exporter_user }}"
+
+- name: Download iDRAC Redfish exporter
+  get_url:
+    url: "{{ idrac_exporter_download_url }}"
+    dest: "/tmp/redfish_exporter.tar.gz"
+    mode: '0644'
+  register: download_result
+
+- name: Extract iDRAC Redfish exporter binary
+  unarchive:
+    src: "/tmp/redfish_exporter.tar.gz"
+    dest: "/tmp/"
+    remote_src: yes
+  when: download_result.changed
+
+- name: Move redfish_exporter binary to install directory
+  copy:
+    src: "/tmp/redfish_exporter-{{ idrac_exporter_version }}.linux-amd64/redfish_exporter"
+    dest: "{{ idrac_exporter_install_dir }}/redfish_exporter"
+    mode: '0755'
+    owner: root
+    group: root
+  when: download_result.changed
+
+- name: Deploy iDRAC exporter configuration file
+  template:
+    src: "redfish_config.yml.j2"
+    dest: "{{ idrac_exporter_config_dir }}/config.yml"
+    mode: '0600'
+    owner: "{{ idrac_exporter_user }}"
+    group: "{{ idrac_exporter_user }}"
+  notify: Restart idrac_exporter
+
+- name: Deploy systemd service for idrac_exporter
+  template:
+    src: "idrac_exporter.service.j2"
+    dest: "/etc/systemd/system/idrac_exporter.service"
+    mode: '0644'
+  notify: Restart idrac_exporter
+
+- name: Reload systemd daemon
+  systemd:
+    daemon_reload: yes
+
+- name: Enable and start idrac_exporter service
+  systemd:
+    name: idrac_exporter
+    enabled: yes
+    state: started

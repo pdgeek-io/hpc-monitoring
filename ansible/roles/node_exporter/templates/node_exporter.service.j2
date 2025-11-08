@@ -1,11 +1,36 @@
 [Unit]
 Description=Prometheus Node Exporter (Rocky Linux)
-After=network.target
+Documentation=https://github.com/prometheus/node_exporter
+After=network-online.target
+Wants=network-online.target
 
 [Service]
+Type=simple
 User={{ node_exporter_user }}
-ExecStart={{ node_exporter_install_dir }}/node_exporter --web.listen-address=":{{ node_exporter_port }}"
+Group={{ node_exporter_user }}
+ExecStart={{ node_exporter_install_dir }}/node_exporter \
+  --web.listen-address=":{{ node_exporter_port }}" \
+  --collector.systemd \
+  --collector.processes \
+  --collector.cpu.info \
+  --collector.diskstats \
+  --collector.filesystem \
+  --collector.loadavg \
+  --collector.meminfo \
+  --collector.netdev \
+  --collector.netstat \
+  --collector.vmstat
+
+SyslogIdentifier=node_exporter
 Restart=always
+RestartSec=5s
+
+# Security hardening for Rocky Linux
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+ReadWritePaths=/proc /sys
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
